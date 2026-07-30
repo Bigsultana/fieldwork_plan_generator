@@ -1,45 +1,88 @@
 # Appendix Builder
 
-> Generates formatted PowerPoint appendix documents from engineering data using a PTG template.
+Appendix Builder is a neutral Windows desktop application for assembling exported engineering images into an A1 landscape PowerPoint appendix.
 
-**Version:** 2.0.3 | **Status:** Active | **Owner:** Matthew Raison
+**Version:** 2.1.0  
+**Status:** Baseline hardening  
+**Owner:** Matthew Raison
 
----
+> The repository is currently named `fieldwork_plan_generator`, while the application contained within it is Appendix Builder. This naming decision remains separate from application branding.
 
 ## What it does
-This tool builds appendix-style PowerPoint deliverables from engineering inputs
-using a PTG presentation template and title-block assets. The migrated source
-includes the Python application entry points, support utilities, build spec, and
-the core template assets needed for output generation.
 
-## Requirements
-- Python 3.13 in the local workspace venv
-- `python-pptx`
-- PyInstaller only if packaged later
+The application:
 
-## How to run
-```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\python.exe" "E:\Home Folder\tools\appendix-builder\source\main.py"
+- collects project, client, drawing and company details;
+- creates a sheet register from selected images, a folder, or a CSV file;
+- places each image on an A1 landscape PowerPoint slide;
+- draws a neutral, editable title block;
+- accepts an optional company logo and optional PowerPoint template;
+- preserves image aspect ratio inside the drawing area;
+- inserts a labelled placeholder where an image is missing or unreadable; and
+- saves the completed appendix as a `.pptx` file.
+
+No company identity, contact details, logo, drawing template, or corporate asset is bundled or assumed by default.
+
+## Repository structure
+
+```text
+source/                  Application source
+source/main.py           Desktop application entry point
+source/utils/            Presentation, configuration and title-block logic
+tests/                   Automated tests
+dist/                    PyInstaller specification
+scripts/                 Setup, run and quality-gate scripts
+docs/                    Baseline and review documentation
+requirements.txt         Runtime dependencies
+requirements-dev.txt     Development dependencies
 ```
 
-Core assets preserved in:
-- `assets\PTG_Appendix_Template.pptx`
-- `assets\A1 HORIZONTAL - PTG CONSULTING_COMMERCIAL - Sheet - A1 - PTG - Horizontal.dxf`
+## Supported environment
 
-Bundled `assets/...` paths are now resolved from the tool directory, so the app can still find its template assets after workspace moves or when launched from another current working directory.
+- Windows 10 or Windows 11
+- Python 3.13
+- Windows PowerShell
+- Microsoft PowerPoint or another compatible application for reviewing output
 
-## Changelog
-See [CHANGELOG.md](./CHANGELOG.md)
+## Setup
 
-## Verification
-Run the lightweight smoke test with:
-
-```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\python.exe" -m unittest discover -s "E:\Home Folder\tools\appendix-builder\tests" -p "test_build_smoke.py"
-```
-
-Lint the active source with:
+From the repository root:
 
 ```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\flake8.exe" "E:\Home Folder\tools\appendix-builder\source" --max-line-length=120 --jobs 1
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\setup.ps1
 ```
+
+## Run
+
+```powershell
+.\scripts\run.ps1
+```
+
+## Test
+
+```powershell
+.\scripts\test.ps1
+```
+
+The quality-gate script performs Python compilation, formatting verification, linting and automated tests.
+
+## Application workflow
+
+1. Enter project and title-block information.
+2. Optionally provide a logo or PowerPoint template.
+3. Select the sheet source:
+   - **Selected Images** for an editable in-application register.
+   - **Folder Order** to use supported image files sorted by filename.
+   - **CSV** to use a saved register.
+4. Choose an output `.pptx` path.
+5. Select **Build Appendix PPTX**.
+6. Review the output and any missing-image warnings.
+
+## Default title block
+
+The built-in title block is deliberately neutral. Company fields are blank except for the placeholder `COMPANY NAME`. Users can save their own project configuration or provide their own logo and template without modifying source code.
+
+## Licence
+
+Proprietary and confidential. See [`LICENSE`](LICENSE).

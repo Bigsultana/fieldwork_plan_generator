@@ -1,14 +1,15 @@
 {
   "id": "appendix-builder",
   "name": "Appendix Builder",
-  "version": "2.0.3",
-  "status": "active",
+  "version": "2.1.0",
+  "status": "baseline-hardening",
   "category": "document",
-  "stack": ["Python", "python-pptx", "PyInstaller"],
+  "stack": ["Python", "Tkinter", "Pillow", "python-pptx", "PyInstaller"],
   "created": "2025-06-01",
-  "updated": "2026-04-29",
-  "description": "Generates formatted PowerPoint appendix documents from engineering data using a PTG template.",
-  "source_origin": "E:\\(2) Tools\\(1) Map extraction and presentation\\Version 2\\appendix_builder",
+  "updated": "2026-07-30",
+  "description": "Creates neutral A1 landscape PowerPoint appendices from engineering images.",
+  "repository_name": "fieldwork_plan_generator",
+  "repository_identity_pending": true,
   "distribution": {
     "model": "owner-only",
     "requires_token": false

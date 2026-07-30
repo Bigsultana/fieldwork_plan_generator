@@ -1,7 +1,4 @@
-"""
-PTG Appendix Builder - Desktop Application
-Assembles a formal PTG-formatted appendix PPTX from exported images.
-"""
+"""Neutral desktop interface for building engineering-image appendices."""
 
 import json
 import os
@@ -10,12 +7,14 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
+from datetime import date
 from tkinter import filedialog, messagebox, ttk
 
 from utils.builder import build_appendix
 from utils.config_loader import (
     build_sheets_from_image_paths,
     build_sheets_from_images,
+    default_project_config,
     load_project_config,
     load_sheet_config,
     resolve_optional_path,
@@ -24,6 +23,7 @@ from utils.config_loader import (
     validate_sheet_config,
 )
 
+APP_VERSION = "2.1.0"
 BG_MAIN = "#1e2228"
 BG_CARD = "#262b33"
 BG_INPUT = "#1a1e24"
@@ -31,10 +31,9 @@ BG_ACCENT = "#2d6a9f"
 FG_PRI = "#e8eaf0"
 FG_SEC = "#9aa0ad"
 FG_BRD = "#3a3f4a"
-
 FONT_BODY = ("Segoe UI", 10)
-FONT_LBL = ("Segoe UI", 9)
-FONT_TINY = ("Segoe UI", 8)
+FONT_LABEL = ("Segoe UI", 9)
+FONT_SMALL = ("Segoe UI", 8)
 FONT_MONO = ("Consolas", 9)
 
 
@@ -42,195 +41,250 @@ class AppendixBuilderApp:
     def __init__(self, root):
         self.root = root
         self.root.configure(bg=BG_MAIN)
-        self.root.title("PTG Appendix Builder")
-        self.root.geometry("860x820")
-        self.root.minsize(780, 640)
-
-        self._event_queue = queue.Queue()
+        self.root.title("Appendix Builder")
+        self._events = queue.Queue()
         self._build_running = False
         self._loaded_config_path = ""
         self.manual_sheets = []
 
         self._configure_styles()
+        self._build_variables()
         self._build_ui()
-
-        self.v_exports_dir.trace_add("write", lambda *a: self._refresh_sheet_table())
-        self.v_prefix.trace_add("write", lambda *a: self._refresh_sheet_table())
-        self.v_sheets_csv.trace_add("write", lambda *a: self._refresh_sheet_table())
-        self.root.after(100, self._process_ui_events)
+        self.root.after(100, self._process_events)
 
     def _configure_styles(self):
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("TFrame", background=BG_MAIN)
-        style.configure("TLabel", background=BG_CARD, foreground=FG_PRI, font=FONT_BODY)
         style.configure(
-            "TEntry", fieldbackground=BG_INPUT, foreground=FG_PRI, insertcolor=FG_PRI
+            "TEntry",
+            fieldbackground=BG_INPUT,
+            foreground=FG_PRI,
+            insertcolor=FG_PRI,
         )
-        style.configure("TCombobox", fieldbackground=BG_INPUT, foreground=FG_PRI)
-        style.configure("TProgressbar", troughcolor=BG_INPUT, background=BG_ACCENT)
-        style.map("TCombobox", fieldbackground=[("readonly", BG_INPUT)])
+        style.configure(
+            "TCombobox",
+            fieldbackground=BG_INPUT,
+            foreground=FG_PRI,
+        )
+        style.configure(
+            "Treeview",
+            background=BG_INPUT,
+            foreground=FG_PRI,
+            fieldbackground=BG_INPUT,
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=BG_CARD,
+            foreground=FG_PRI,
+        )
+        style.configure(
+            "TProgressbar",
+            troughcolor=BG_INPUT,
+            background=BG_ACCENT,
+        )
+
+    def _build_variables(self):
+        defaults = default_project_config()
+        self.fields = {
+            key: tk.StringVar(value=value)
+            for key, value in defaults.items()
+        }
+        self.fields["date"].set(date.today().strftime("%d.%m.%y"))
+        self.exports_dir = tk.StringVar()
+        self.output_path = tk.StringVar()
+        self.sheets_csv = tk.StringVar()
+        self.sheet_mode = tk.StringVar(value="manual")
+        self.sheet_mode.trace_add(
+            "write", lambda *_: self._refresh_sheet_table()
+        )
+        self.exports_dir.trace_add(
+            "write", lambda *_: self._refresh_sheet_table()
+        )
+        self.sheets_csv.trace_add(
+            "write", lambda *_: self._refresh_sheet_table()
+        )
 
     def _build_ui(self):
-        bar = tk.Frame(self.root, bg=BG_ACCENT, height=44)
-        bar.pack(fill="x")
-        bar.pack_propagate(False)
+        header = tk.Frame(self.root, bg=BG_ACCENT, height=46)
+        header.pack(fill="x")
+        header.pack_propagate(False)
         tk.Label(
-            bar,
-            text="  PTG Appendix Builder",
+            header,
+            text="  Appendix Builder",
             bg=BG_ACCENT,
             fg="white",
             font=("Segoe UI", 12, "bold"),
-        ).pack(side="left", pady=10)
-        tk.Label(bar, text="v2.3  ", bg=BG_ACCENT, fg="#c0d8f0", font=FONT_TINY).pack(
-            side="right", pady=10
-        )
+        ).pack(side="left", pady=11)
+        tk.Label(
+            header,
+            text=f"v{APP_VERSION}  ",
+            bg=BG_ACCENT,
+            fg="#c0d8f0",
+            font=FONT_SMALL,
+        ).pack(side="right", pady=12)
 
         outer = tk.Frame(self.root, bg=BG_MAIN)
         outer.pack(fill="both", expand=True)
         canvas = tk.Canvas(outer, bg=BG_MAIN, highlightthickness=0)
-        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        self.sf = tk.Frame(canvas, bg=BG_MAIN)
-        win = canvas.create_window((0, 0), window=self.sf, anchor="nw")
-        self.sf.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        scrollbar = ttk.Scrollbar(
+            outer, orient="vertical", command=canvas.yview
         )
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        body = tk.Frame(canvas, bg=BG_MAIN)
+        window = canvas.create_window((0, 0), window=body, anchor="nw")
+        body.bind(
+            "<Configure>",
+            lambda _: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(window, width=event.width),
+        )
         canvas.bind_all(
             "<MouseWheel>",
-            lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"),
+            lambda event: canvas.yview_scroll(
+                -1 * (event.delta // 120), "units"
+            ),
         )
 
-        pad = tk.Frame(self.sf, bg=BG_MAIN)
-        pad.pack(fill="both", expand=True, padx=16, pady=12)
+        content = tk.Frame(body, bg=BG_MAIN)
+        content.pack(fill="both", expand=True, padx=16, pady=12)
+        self._build_project_card(content)
+        self._build_company_card(content)
+        self._build_files_card(content)
+        self._build_sheets_card(content)
+        self._build_log_card(content)
+        self._build_actions_card(content)
 
-        self._build_project_section(pad)
-        self._build_company_section(pad)
-        self._build_paths_section(pad)
-        self._build_sheets_section(pad)
-        self._build_output_section(pad)
-        self._build_run_section(pad)
-
-    def _card(self, parent, title=None):
-        outer = tk.Frame(parent, bg=FG_BRD, pady=1, padx=1)
-        outer.pack(fill="x", pady=5)
-        inner = tk.Frame(outer, bg=BG_CARD, padx=14, pady=12)
-        inner.pack(fill="both", expand=True)
+    def _card(self, parent, title):
+        border = tk.Frame(parent, bg=FG_BRD, padx=1, pady=1)
+        border.pack(fill="x", pady=5)
+        card = tk.Frame(border, bg=BG_CARD, padx=14, pady=12)
+        card.pack(fill="both", expand=True)
         if title:
             tk.Label(
-                inner,
+                card,
                 text=title.upper(),
                 bg=BG_CARD,
                 fg=FG_SEC,
                 font=("Segoe UI", 8, "bold"),
             ).pack(anchor="w", pady=(0, 8))
-        return inner
+        return card
 
-    def _field_row(self, parent, label, var, width=30):
+    def _entry_row(self, parent, label, variable):
         row = tk.Frame(parent, bg=BG_CARD)
         row.pack(fill="x", pady=3)
         tk.Label(
-            row, text=label, bg=BG_CARD, fg=FG_SEC, font=FONT_LBL, width=20, anchor="w"
+            row,
+            text=label,
+            width=20,
+            anchor="w",
+            bg=BG_CARD,
+            fg=FG_SEC,
+            font=FONT_LABEL,
         ).pack(side="left")
-        entry = ttk.Entry(row, textvariable=var, width=width)
-        entry.pack(side="left", fill="x", expand=True)
-        return entry
+        ttk.Entry(row, textvariable=variable).pack(
+            side="left", fill="x", expand=True
+        )
 
-    def _path_row(self, parent, label, var, is_dir=False, save_file=False):
+    def _path_row(
+        self,
+        parent,
+        label,
+        variable,
+        *,
+        directory=False,
+        output=False,
+    ):
         row = tk.Frame(parent, bg=BG_CARD)
         row.pack(fill="x", pady=3)
         tk.Label(
-            row, text=label, bg=BG_CARD, fg=FG_SEC, font=FONT_LBL, width=20, anchor="w"
+            row,
+            text=label,
+            width=20,
+            anchor="w",
+            bg=BG_CARD,
+            fg=FG_SEC,
+            font=FONT_LABEL,
         ).pack(side="left")
-        ttk.Entry(row, textvariable=var, width=38).pack(
+        ttk.Entry(row, textvariable=variable).pack(
             side="left", fill="x", expand=True, padx=(0, 6)
         )
 
-        def choose_dir():
-            var.set(filedialog.askdirectory(title=label))
-
-        def choose_save_file():
-            var.set(
-                filedialog.asksaveasfilename(
+        def browse():
+            if directory:
+                selected = filedialog.askdirectory(title=label)
+            elif output:
+                selected = filedialog.asksaveasfilename(
+                    title=label,
                     defaultextension=".pptx",
                     filetypes=[("PowerPoint", "*.pptx")],
-                    title=label,
                 )
-            )
+            else:
+                selected = filedialog.askopenfilename(title=label)
+            if selected:
+                variable.set(selected)
 
-        def choose_file():
-            var.set(filedialog.askopenfilename(title=label))
-
-        if is_dir:
-            command = choose_dir
-        elif save_file:
-            command = choose_save_file
-        else:
-            command = choose_file
         tk.Button(
             row,
             text="Browse",
-            font=FONT_TINY,
+            command=browse,
             bg=BG_INPUT,
             fg=FG_SEC,
             relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=command,
+            font=FONT_SMALL,
         ).pack(side="left")
 
-    def _build_project_section(self, parent):
+    def _build_project_card(self, parent):
         card = self._card(parent, "Project Details")
-        self.v_proj_title = tk.StringVar(value="")
-        self.v_proj_addr = tk.StringVar(value="")
-        self.v_proj_number = tk.StringVar(value="")
-        self.v_client = tk.StringVar(value="")
-        self.v_drawn = tk.StringVar(value="")
-        self.v_designed = tk.StringVar(value="")
-        self.v_approved = tk.StringVar(value="")
-        self.v_date = tk.StringVar(value="")
-        self.v_status = tk.StringVar(value="FOR INFORMATION")
-        self.v_prefix = tk.StringVar(value="A")
+        for label, key in (
+            ("Project Title", "project_title"),
+            ("Project Address", "project_address"),
+            ("Project Number", "project_number"),
+            ("Client Name", "client_name"),
+        ):
+            self._entry_row(card, label, self.fields[key])
 
-        self._field_row(card, "Project Title", self.v_proj_title)
-        self._field_row(card, "Project Address", self.v_proj_addr)
-        self._field_row(card, "Project Number", self.v_proj_number)
-        self._field_row(card, "Client Name", self.v_client)
+        compact = tk.Frame(card, bg=BG_CARD)
+        compact.pack(fill="x", pady=5)
+        for label, key, width in (
+            ("Drawn By", "drawn_by", 8),
+            ("Designed By", "designed_by", 8),
+            ("Approved By", "approved_by", 8),
+            ("Date", "date", 10),
+            ("Prefix", "sheet_prefix", 6),
+        ):
+            column = tk.Frame(compact, bg=BG_CARD)
+            column.pack(side="left", padx=(0, 12))
+            tk.Label(
+                column,
+                text=label,
+                bg=BG_CARD,
+                fg=FG_SEC,
+                font=FONT_SMALL,
+            ).pack(anchor="w")
+            ttk.Entry(
+                column,
+                textvariable=self.fields[key],
+                width=width,
+            ).pack()
 
-        row2 = tk.Frame(card, bg=BG_CARD)
-        row2.pack(fill="x", pady=6)
-        for label, var, width in [
-            ("Drawn By", self.v_drawn, 8),
-            ("Designed By", self.v_designed, 8),
-            ("Approved By", self.v_approved, 8),
-            ("Date", self.v_date, 10),
-            ("Sheet Prefix", self.v_prefix, 5),
-        ]:
-            col = tk.Frame(row2, bg=BG_CARD)
-            col.pack(side="left", padx=(0, 14))
-            tk.Label(col, text=label, bg=BG_CARD, fg=FG_SEC, font=FONT_TINY).pack(
-                anchor="w"
-            )
-            ttk.Entry(col, textvariable=var, width=width).pack()
-
-        ds_row = tk.Frame(card, bg=BG_CARD)
-        ds_row.pack(fill="x", pady=3)
+        status = tk.Frame(card, bg=BG_CARD)
+        status.pack(fill="x", pady=3)
         tk.Label(
-            ds_row,
+            status,
             text="Drawing Status",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_LBL,
             width=20,
             anchor="w",
+            bg=BG_CARD,
+            fg=FG_SEC,
+            font=FONT_LABEL,
         ).pack(side="left")
         ttk.Combobox(
-            ds_row,
-            textvariable=self.v_status,
+            status,
+            textvariable=self.fields["drawing_status"],
             values=[
                 "FOR INFORMATION",
                 "FOR APPROVAL",
@@ -242,274 +296,221 @@ class AppendixBuilderApp:
             width=28,
         ).pack(side="left")
 
-        btn_row = tk.Frame(card, bg=BG_CARD)
-        btn_row.pack(fill="x", pady=(10, 0))
-        for label, cmd in [
-            ("Load project_config.json", self._load_config),
-            ("Save project_config.json", self._save_config),
-            ("Create template config", self._create_template_config),
-        ]:
+        buttons = tk.Frame(card, bg=BG_CARD)
+        buttons.pack(fill="x", pady=(8, 0))
+        for label, command in (
+            ("Load Config", self._load_config),
+            ("Save Config", self._save_config),
+            ("Create Config Template", self._create_config_template),
+        ):
             tk.Button(
-                btn_row,
+                buttons,
                 text=label,
-                font=FONT_TINY,
+                command=command,
                 bg=BG_INPUT,
                 fg=FG_SEC,
                 relief="flat",
-                padx=8,
-                pady=5,
-                cursor="hand2",
-                command=cmd,
+                font=FONT_SMALL,
             ).pack(side="left", padx=(0, 8))
 
-    def _build_company_section(self, parent):
-        card = self._card(parent, "Company / Titleblock")
-        self.v_company_name = tk.StringVar(value="PTG CONSULTING")
-        self.v_company_address = tk.StringVar(
-            value="Level 3, 159 Coronation Drive (CNR Cribb St), Milton QLD 4064"
+    def _build_company_card(self, parent):
+        card = self._card(parent, "Company / Title Block")
+        for label, key in (
+            ("Company Name", "company_name"),
+            ("Company Address", "company_address"),
+            ("Phone", "company_phone"),
+            ("Email", "company_email"),
+            ("Website", "company_website"),
+        ):
+            self._entry_row(card, label, self.fields[key])
+
+    def _build_files_card(self, parent):
+        card = self._card(parent, "Files")
+        self._path_row(
+            card,
+            "Exports Folder",
+            self.exports_dir,
+            directory=True,
         )
-        self.v_company_phone = tk.StringVar(value="(07) 3444 6666")
-        self.v_company_email = tk.StringVar(value="admin@ptgconsulting.com.au")
-        self.v_company_website = tk.StringVar(value="www.ptgconsulting.com.au")
+        self._path_row(card, "Logo Image", self.fields["logo_path"])
+        self._path_row(
+            card,
+            "Template PPTX",
+            self.fields["template_path"],
+        )
+        self._path_row(
+            card,
+            "Output PPTX",
+            self.output_path,
+            output=True,
+        )
 
-        self._field_row(card, "Company Name", self.v_company_name)
-        self._field_row(card, "Company Address", self.v_company_address)
-
-        row = tk.Frame(card, bg=BG_CARD)
-        row.pack(fill="x", pady=3)
-        for label, var, width in [
-            ("Phone", self.v_company_phone, 18),
-            ("Email", self.v_company_email, 26),
-            ("Website", self.v_company_website, 24),
-        ]:
-            col = tk.Frame(row, bg=BG_CARD)
-            col.pack(side="left", padx=(0, 14))
-            tk.Label(col, text=label, bg=BG_CARD, fg=FG_SEC, font=FONT_TINY).pack(
-                anchor="w"
-            )
-            ttk.Entry(col, textvariable=var, width=width).pack()
-
-    def _build_paths_section(self, parent):
-        card = self._card(parent, "File Paths")
-        self.v_exports_dir = tk.StringVar()
-        self.v_logo_path = tk.StringVar()
-        self.v_template_path = tk.StringVar(value="assets/PTG_Appendix_Template.pptx")
-        self.v_output_path = tk.StringVar()
-        self.v_sheet_mode = tk.StringVar(value="folder")
-
-        self._path_row(card, "Exports folder", self.v_exports_dir, is_dir=True)
-        self._path_row(card, "Logo image (opt.)", self.v_logo_path)
-        self._path_row(card, "Template PPTX", self.v_template_path)
-
-        mode_row = tk.Frame(card, bg=BG_CARD)
-        mode_row.pack(fill="x", pady=(4, 6))
+        mode = tk.Frame(card, bg=BG_CARD)
+        mode.pack(fill="x", pady=(8, 0))
         tk.Label(
-            mode_row,
-            text="Sheet source",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_LBL,
+            mode,
+            text="Sheet Source",
             width=20,
             anchor="w",
+            bg=BG_CARD,
+            fg=FG_SEC,
+            font=FONT_LABEL,
         ).pack(side="left")
-        for label, value in [
-            ("Selected images", "manual"),
-            ("Folder order", "folder"),
+        for label, value in (
+            ("Selected Images", "manual"),
+            ("Folder Order", "folder"),
             ("CSV", "csv"),
-        ]:
+        ):
             tk.Radiobutton(
-                mode_row,
+                mode,
                 text=label,
+                variable=self.sheet_mode,
                 value=value,
-                variable=self.v_sheet_mode,
                 bg=BG_CARD,
                 fg=FG_PRI,
                 selectcolor=BG_INPUT,
                 activebackground=BG_CARD,
                 activeforeground=FG_PRI,
-                font=FONT_LBL,
-                command=self._refresh_sheet_table,
+                font=FONT_LABEL,
             ).pack(side="left", padx=(0, 12))
 
-        self._path_row(card, "Output .pptx", self.v_output_path, save_file=True)
-        tk.Label(
-            card,
-            text=(
-                "Tip: use Selected images for an editable in-app sheet register, "
-                "Folder order for a quick auto-build, or CSV for a saved register."
-            ),
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_TINY,
-        ).pack(anchor="w", pady=(6, 0))
-
-    def _build_sheets_section(self, parent):
+    def _build_sheets_card(self, parent):
         card = self._card(parent, "Sheet List")
-        tk.Label(
-            card,
-            text=(
-                "Manual mode lets you select images and then edit sheet number, "
-                "title, filename pattern, and scale inside the app."
-            ),
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_TINY,
-        ).pack(anchor="w", pady=(0, 8))
-
-        self.v_sheets_csv = tk.StringVar()
         csv_row = tk.Frame(card, bg=BG_CARD)
         csv_row.pack(fill="x", pady=(0, 8))
-        tk.Label(
-            csv_row,
-            text="sheets.csv (opt.)",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_LBL,
-            width=20,
-            anchor="w",
-        ).pack(side="left")
-        ttk.Entry(csv_row, textvariable=self.v_sheets_csv, width=38).pack(
+        ttk.Entry(csv_row, textvariable=self.sheets_csv).pack(
             side="left", fill="x", expand=True, padx=(0, 6)
         )
         tk.Button(
             csv_row,
-            text="Browse",
-            font=FONT_TINY,
+            text="Select CSV",
+            command=self._select_csv,
             bg=BG_INPUT,
             fg=FG_SEC,
             relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=lambda: self.v_sheets_csv.set(
-                filedialog.askopenfilename(
-                    filetypes=[("CSV", "*.csv")], title="Select sheets.csv"
-                )
-            ),
+            font=FONT_SMALL,
         ).pack(side="left")
         tk.Button(
             csv_row,
-            text="Create template CSV",
-            font=FONT_TINY,
+            text="Create CSV Template",
+            command=self._create_csv_template,
             bg=BG_INPUT,
             fg=FG_SEC,
             relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=self._create_template_csv,
+            font=FONT_SMALL,
         ).pack(side="left", padx=(8, 0))
 
-        manual_btn_row = tk.Frame(card, bg=BG_CARD)
-        manual_btn_row.pack(fill="x", pady=(0, 8))
-        self.import_images_btn = tk.Button(
-            manual_btn_row,
-            text="Select Images...",
-            font=FONT_TINY,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=self._select_manual_images,
-        )
-        self.import_images_btn.pack(side="left")
-        self.edit_sheet_btn = tk.Button(
-            manual_btn_row,
-            text="Edit Selected",
-            font=FONT_TINY,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=self._edit_selected_sheet,
-        )
-        self.edit_sheet_btn.pack(side="left", padx=(8, 0))
-        self.move_up_btn = tk.Button(
-            manual_btn_row,
-            text="Move Up",
-            font=FONT_TINY,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=lambda: self._move_selected_sheet(-1),
-        )
-        self.move_up_btn.pack(side="left", padx=(8, 0))
-        self.move_down_btn = tk.Button(
-            manual_btn_row,
-            text="Move Down",
-            font=FONT_TINY,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=lambda: self._move_selected_sheet(1),
-        )
-        self.move_down_btn.pack(side="left", padx=(8, 0))
-        self.remove_sheet_btn = tk.Button(
-            manual_btn_row,
-            text="Remove",
-            font=FONT_TINY,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=8,
-            pady=4,
-            cursor="hand2",
-            command=self._remove_selected_sheet,
-        )
-        self.remove_sheet_btn.pack(side="left", padx=(8, 0))
+        buttons = tk.Frame(card, bg=BG_CARD)
+        buttons.pack(fill="x", pady=(0, 8))
+        for label, command in (
+            ("Select Images", self._select_images),
+            ("Edit", self._edit_sheet),
+            ("Move Up", lambda: self._move_sheet(-1)),
+            ("Move Down", lambda: self._move_sheet(1)),
+            ("Remove", self._remove_sheet),
+        ):
+            tk.Button(
+                buttons,
+                text=label,
+                command=command,
+                bg=BG_INPUT,
+                fg=FG_SEC,
+                relief="flat",
+                font=FONT_SMALL,
+            ).pack(side="left", padx=(0, 8))
 
-        self.sheet_preview_label = tk.Label(
-            card,
-            text="SHEET PREVIEW",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=("Segoe UI", 8, "bold"),
-        )
-        self.sheet_preview_label.pack(anchor="w", pady=(0, 4))
-
-        tbl_frame = tk.Frame(card, bg=BG_CARD)
-        tbl_frame.pack(fill="x")
-        cols = ("#", "Sheet Title", "Filename Pattern", "Scale")
+        columns = ("number", "title", "pattern", "scale")
         self.sheet_tree = ttk.Treeview(
-            tbl_frame, columns=cols, show="headings", height=8
+            card,
+            columns=columns,
+            show="headings",
+            height=8,
         )
-        for column, width in zip(cols, [50, 320, 220, 80]):
-            self.sheet_tree.heading(column, text=column)
-            self.sheet_tree.column(column, width=width, anchor="w")
-        self.sheet_tree.pack(side="left", fill="x", expand=True)
-        sb2 = ttk.Scrollbar(tbl_frame, orient="vertical", command=self.sheet_tree.yview)
-        self.sheet_tree.configure(yscrollcommand=sb2.set)
-        sb2.pack(side="right", fill="y")
-        self.sheet_tree.bind("<Double-1>", lambda _e: self._edit_selected_sheet())
-
+        headings = (
+            ("number", "#", 60),
+            ("title", "Drawing Title", 340),
+            ("pattern", "Filename Pattern", 250),
+            ("scale", "Scale", 80),
+        )
+        for key, title, width in headings:
+            self.sheet_tree.heading(key, text=title)
+            self.sheet_tree.column(key, width=width, anchor="w")
+        self.sheet_tree.pack(fill="x")
+        self.sheet_tree.bind(
+            "<Double-1>", lambda _: self._edit_sheet()
+        )
         self._refresh_sheet_table()
 
-    def _refresh_sheet_table(self, *_):
+    def _build_log_card(self, parent):
+        card = self._card(parent, "Build Log")
+        self.log = tk.Text(
+            card,
+            height=8,
+            bg=BG_INPUT,
+            fg=FG_PRI,
+            font=FONT_MONO,
+            relief="flat",
+            state="disabled",
+        )
+        self.log.pack(fill="x")
+        self.progress = ttk.Progressbar(card, mode="determinate")
+        self.progress.pack(fill="x", pady=(8, 0))
+        self.progress_label = tk.Label(
+            card,
+            text="",
+            bg=BG_CARD,
+            fg=FG_SEC,
+            font=FONT_SMALL,
+        )
+        self.progress_label.pack(anchor="w")
+
+    def _build_actions_card(self, parent):
+        card = self._card(parent, "")
+        self.build_button = tk.Button(
+            card,
+            text="Build Appendix PPTX",
+            command=self._run_build,
+            bg=BG_ACCENT,
+            fg="white",
+            relief="flat",
+            font=("Segoe UI", 11, "bold"),
+            padx=18,
+            pady=9,
+        )
+        self.build_button.pack(side="left")
+        self.open_button = tk.Button(
+            card,
+            text="Open Output Folder",
+            command=self._open_output_folder,
+            bg=BG_INPUT,
+            fg=FG_SEC,
+            relief="flat",
+            font=FONT_LABEL,
+            padx=12,
+            pady=9,
+        )
+        self.open_button.pack(side="left", padx=(12, 0))
+
+    def _current_sheets(self):
+        mode = self.sheet_mode.get()
+        if mode == "manual":
+            return [dict(sheet) for sheet in self.manual_sheets]
+        if mode == "folder":
+            return build_sheets_from_images(
+                self.exports_dir.get().strip(),
+                self.fields["sheet_prefix"].get().strip() or "A",
+            )
+        return load_sheet_config(self.sheets_csv.get().strip())
+
+    def _refresh_sheet_table(self):
         if not hasattr(self, "sheet_tree"):
             return
-        for row in self.sheet_tree.get_children():
-            self.sheet_tree.delete(row)
-
-        sheets = self._get_current_sheets()
-        preview_titles = {
-            "manual": "SHEET PREVIEW (editable selected images)",
-            "folder": "SHEET PREVIEW (folder order)",
-            "csv": "SHEET PREVIEW (loaded CSV or defaults)",
-        }
-        self.sheet_preview_label.configure(
-            text=preview_titles.get(self.v_sheet_mode.get(), "SHEET PREVIEW")
-        )
-
+        for item in self.sheet_tree.get_children():
+            self.sheet_tree.delete(item)
+        try:
+            sheets = self._current_sheets()
+        except Exception:
+            sheets = []
         for sheet in sheets:
             title = sheet.get("drawing_title_1", "")
             if sheet.get("drawing_title_2"):
@@ -524,541 +525,348 @@ class AppendixBuilderApp:
                     sheet.get("scale", "NTS"),
                 ),
             )
-        self._update_manual_buttons()
 
-    def _get_current_sheets(self):
-        mode = self.v_sheet_mode.get()
-        if mode == "manual":
-            return [dict(sheet) for sheet in self.manual_sheets]
-        if mode == "folder":
-            return build_sheets_from_images(
-                self.v_exports_dir.get().strip(), self.v_prefix.get().strip() or "A"
-            )
-        return load_sheet_config(self.v_sheets_csv.get())
+    def _selected_index(self):
+        selection = self.sheet_tree.selection()
+        return self.sheet_tree.index(selection[0]) if selection else None
 
-    def _update_manual_buttons(self):
-        state = "normal" if self.v_sheet_mode.get() == "manual" else "disabled"
-        for widget in [
-            self.import_images_btn,
-            self.edit_sheet_btn,
-            self.move_up_btn,
-            self.move_down_btn,
-            self.remove_sheet_btn,
-        ]:
-            widget.configure(state=state)
-
-    def _select_manual_images(self):
-        image_paths = filedialog.askopenfilenames(
-            title="Select images for appendix",
+    def _select_images(self):
+        paths = filedialog.askopenfilenames(
+            title="Select appendix images",
             filetypes=[
-                ("Image files", "*.jpg *.jpeg *.png *.tif *.tiff *.bmp"),
+                ("Images", "*.jpg *.jpeg *.png *.tif *.tiff *.bmp"),
                 ("All files", "*.*"),
             ],
         )
-        if not image_paths:
-            return
-        self.manual_sheets = build_sheets_from_image_paths(list(image_paths))
-        self.v_sheet_mode.set("manual")
-        self._refresh_sheet_table()
-        self._log(
-            f"Loaded {len(self.manual_sheets)} selected image(s) into the editable sheet list."
+        if paths:
+            self.manual_sheets = build_sheets_from_image_paths(list(paths))
+            self.sheet_mode.set("manual")
+            self._refresh_sheet_table()
+
+    def _select_csv(self):
+        path = filedialog.askopenfilename(
+            title="Select sheets CSV",
+            filetypes=[("CSV", "*.csv")],
         )
+        if path:
+            self.sheets_csv.set(path)
+            self.sheet_mode.set("csv")
 
-    def _get_selected_sheet_index(self):
-        selection = self.sheet_tree.selection()
-        if not selection:
-            return None
-        return self.sheet_tree.index(selection[0])
-
-    def _edit_selected_sheet(self):
-        if self.v_sheet_mode.get() != "manual":
+    def _edit_sheet(self):
+        if self.sheet_mode.get() != "manual":
             messagebox.showinfo(
-                "Manual editing",
-                "Switch to Selected images mode to edit the sheet list inside the app.",
+                "Manual mode required",
+                "Switch to Selected Images to edit sheets in the application.",
             )
             return
-        index = self._get_selected_sheet_index()
-        if index is None or index >= len(self.manual_sheets):
-            messagebox.showinfo("Select a sheet", "Select a sheet row to edit.")
+        index = self._selected_index()
+        if index is None:
+            messagebox.showinfo(
+                "Select a sheet", "Select a sheet row to edit."
+            )
             return
-
         sheet = self.manual_sheets[index]
         dialog = tk.Toplevel(self.root)
         dialog.title("Edit Sheet")
         dialog.configure(bg=BG_CARD)
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.resizable(False, False)
-
-        values = {
-            "sheet_number": tk.StringVar(value=sheet.get("sheet_number", "")),
-            "drawing_title_1": tk.StringVar(value=sheet.get("drawing_title_1", "")),
-            "filename_pattern": tk.StringVar(value=sheet.get("filename_pattern", "")),
-            "scale": tk.StringVar(value=sheet.get("scale", "NTS")),
+        variables = {
+            key: tk.StringVar(value=sheet.get(key, ""))
+            for key in (
+                "sheet_number",
+                "drawing_title_1",
+                "drawing_title_2",
+                "drawing_title_3",
+                "scale",
+            )
         }
-
-        for label, key in [
-            ("#", "sheet_number"),
-            ("Sheet Title", "drawing_title_1"),
-            ("Filename Pattern", "filename_pattern"),
+        for label, key in (
+            ("Sheet Number", "sheet_number"),
+            ("Title", "drawing_title_1"),
+            ("Subtitle", "drawing_title_2"),
+            ("Third Line", "drawing_title_3"),
             ("Scale", "scale"),
-        ]:
+        ):
             row = tk.Frame(dialog, bg=BG_CARD)
-            row.pack(fill="x", padx=14, pady=6)
+            row.pack(fill="x", padx=14, pady=5)
             tk.Label(
                 row,
                 text=label,
+                width=14,
+                anchor="w",
                 bg=BG_CARD,
                 fg=FG_SEC,
-                font=FONT_LBL,
-                width=16,
-                anchor="w",
             ).pack(side="left")
-            ttk.Entry(row, textvariable=values[key], width=34).pack(
-                side="left", fill="x", expand=True
-            )
+            ttk.Entry(
+                row,
+                textvariable=variables[key],
+                width=42,
+            ).pack(side="left")
 
-        src_row = tk.Frame(dialog, bg=BG_CARD)
-        src_row.pack(fill="x", padx=14, pady=(2, 8))
-        tk.Label(
-            src_row,
-            text="Source Image",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_LBL,
-            width=16,
-            anchor="w",
-        ).pack(side="left")
-        tk.Label(
-            src_row,
-            text=os.path.basename(sheet.get("source_path", "")) or "(none)",
-            bg=BG_CARD,
-            fg=FG_PRI,
-            font=FONT_TINY,
-            anchor="w",
-        ).pack(side="left")
-
-        btns = tk.Frame(dialog, bg=BG_CARD)
-        btns.pack(fill="x", padx=14, pady=(0, 14))
-
-        def save_and_close():
-            sheet["sheet_number"] = values["sheet_number"].get().strip()
-            sheet["drawing_title_1"] = values["drawing_title_1"].get().strip()
-            sheet["filename_pattern"] = values["filename_pattern"].get().strip()
-            sheet["scale"] = values["scale"].get().strip() or "NTS"
+        def save():
+            for key, variable in variables.items():
+                sheet[key] = variable.get().strip()
             dialog.destroy()
             self._refresh_sheet_table()
 
         tk.Button(
-            btns,
+            dialog,
             text="Save",
-            font=FONT_TINY,
+            command=save,
             bg=BG_ACCENT,
             fg="white",
             relief="flat",
-            padx=10,
-            pady=4,
-            cursor="hand2",
-            command=save_and_close,
-        ).pack(side="left")
+        ).pack(side="left", padx=14, pady=12)
         tk.Button(
-            btns,
+            dialog,
             text="Cancel",
-            font=FONT_TINY,
+            command=dialog.destroy,
             bg=BG_INPUT,
             fg=FG_SEC,
             relief="flat",
-            padx=10,
-            pady=4,
-            cursor="hand2",
-            command=dialog.destroy,
-        ).pack(side="left", padx=(8, 0))
+        ).pack(side="left", pady=12)
 
-    def _move_selected_sheet(self, offset):
-        if self.v_sheet_mode.get() != "manual":
-            messagebox.showinfo(
-                "Manual editing",
-                "Switch to Selected images mode to reorder the sheet list inside the app.",
-            )
+    def _move_sheet(self, offset):
+        if self.sheet_mode.get() != "manual":
             return
-        index = self._get_selected_sheet_index()
+        index = self._selected_index()
         if index is None:
-            messagebox.showinfo("Select a sheet", "Select a sheet row to move.")
             return
-        new_index = index + offset
-        if new_index < 0 or new_index >= len(self.manual_sheets):
+        target = index + offset
+        if target < 0 or target >= len(self.manual_sheets):
             return
-        self.manual_sheets[index], self.manual_sheets[new_index] = (
-            self.manual_sheets[new_index],
+        self.manual_sheets[index], self.manual_sheets[target] = (
+            self.manual_sheets[target],
             self.manual_sheets[index],
         )
-        self._renumber_manual_sheets()
+        for position, sheet in enumerate(self.manual_sheets, 1):
+            sheet["sheet_number"] = f"{position:03d}"
         self._refresh_sheet_table()
         children = self.sheet_tree.get_children()
-        if 0 <= new_index < len(children):
-            self.sheet_tree.selection_set(children[new_index])
-            self.sheet_tree.focus(children[new_index])
+        self.sheet_tree.selection_set(children[target])
 
-    def _remove_selected_sheet(self):
-        if self.v_sheet_mode.get() != "manual":
-            messagebox.showinfo(
-                "Manual editing",
-                "Switch to Selected images mode to remove sheets inside the app.",
-            )
+    def _remove_sheet(self):
+        if self.sheet_mode.get() != "manual":
             return
-        index = self._get_selected_sheet_index()
-        if index is None:
-            messagebox.showinfo("Select a sheet", "Select a sheet row to remove.")
-            return
-        removed = self.manual_sheets.pop(index)
-        self._renumber_manual_sheets()
-        self._refresh_sheet_table()
-        removed_name = os.path.basename(removed.get("source_path", "")) or removed.get(
-            "filename_pattern", "image"
-        )
-        self._log(f"Removed sheet for {removed_name}")
+        index = self._selected_index()
+        if index is not None:
+            self.manual_sheets.pop(index)
+            for position, sheet in enumerate(self.manual_sheets, 1):
+                sheet["sheet_number"] = f"{position:03d}"
+            self._refresh_sheet_table()
 
-    def _renumber_manual_sheets(self):
-        for idx, sheet in enumerate(self.manual_sheets, 1):
-            sheet["sheet_number"] = f"{idx:03d}"
-
-    def _build_output_section(self, parent):
-        card = self._card(parent, "Build Log")
-        self.log_text = tk.Text(
-            card,
-            height=8,
-            bg=BG_INPUT,
-            fg=FG_PRI,
-            font=FONT_MONO,
-            relief="flat",
-            insertbackground=FG_PRI,
-            state="disabled",
-        )
-        self.log_text.pack(fill="x")
-        self.progress = ttk.Progressbar(card, mode="determinate", length=400)
-        self.progress.pack(fill="x", pady=(8, 0))
-        self.progress_label = tk.Label(
-            card, text="", bg=BG_CARD, fg=FG_SEC, font=FONT_TINY
-        )
-        self.progress_label.pack(anchor="w")
-
-    def _build_run_section(self, parent):
-        card = self._card(parent)
-        row = tk.Frame(card, bg=BG_CARD)
-        row.pack(fill="x")
-        self.run_btn = tk.Button(
-            row,
-            text="  Build Appendix PPTX  ",
-            font=("Segoe UI", 11, "bold"),
-            bg=BG_ACCENT,
-            fg="white",
-            relief="flat",
-            padx=20,
-            pady=10,
-            cursor="hand2",
-            command=self._run_build,
-        )
-        self.run_btn.pack(side="left")
-        self.open_btn = tk.Button(
-            row,
-            text="  Open Output Folder  ",
-            font=FONT_LBL,
-            bg=BG_INPUT,
-            fg=FG_SEC,
-            relief="flat",
-            padx=12,
-            pady=10,
-            cursor="hand2",
-            command=self._open_output_folder,
-        )
-        self.open_btn.pack(side="left", padx=(12, 0))
-        tk.Label(
-            card,
-            text="Select images, edit the sheet list in-app if needed, then build the appendix PowerPoint.",
-            bg=BG_CARD,
-            fg=FG_SEC,
-            font=FONT_TINY,
-        ).pack(anchor="w", pady=(8, 0))
-
-    def _log(self, msg):
-        self.log_text.configure(state="normal")
-        self.log_text.insert("end", msg + "\n")
-        self.log_text.see("end")
-        self.log_text.configure(state="disabled")
+    def _project_config(self):
+        return {
+            key: variable.get().strip()
+            for key, variable in self.fields.items()
+            if key not in {"logo_path", "template_path"}
+        }
 
     def _run_build(self):
         if self._build_running:
             return
-
-        mode = self.v_sheet_mode.get()
-        exports = self.v_exports_dir.get().strip()
-        output = self.v_output_path.get().strip()
-
-        if not output:
-            messagebox.showerror("Missing path", "Please specify an output .pptx path.")
-            return
-        if os.path.isdir(output):
-            messagebox.showerror(
-                "Invalid output path",
-                "Output must be a full .pptx file path, not just a folder.",
-            )
-            return
+        output = self.output_path.get().strip()
         if not output.lower().endswith(".pptx"):
             messagebox.showerror(
-                "Invalid output path", "Output file must end with .pptx"
+                "Invalid output",
+                "Select an output path ending in .pptx.",
             )
             return
-        if mode in {"folder", "csv"} and (not exports or not os.path.isdir(exports)):
-            messagebox.showerror(
-                "Missing path", "Please select a valid exports folder."
-            )
+        if os.path.exists(output) and not messagebox.askyesno(
+            "Replace output?",
+            f"The file already exists:\n{output}\n\nReplace it?",
+        ):
             return
-
-        sheets = self._get_current_sheets()
-        if mode == "manual" and not sheets:
-            messagebox.showerror(
-                "No images selected",
-                "Select one or more images before building the appendix.",
-            )
+        try:
+            sheets = self._current_sheets()
+        except Exception as exc:
+            messagebox.showerror("Sheet configuration error", str(exc))
             return
-        if mode == "folder" and not sheets:
+        errors = validate_sheet_config(sheets)
+        if errors:
             messagebox.showerror(
-                "No images found",
-                "No supported image files were found in the selected exports folder.",
-            )
-            return
-
-        sheet_errors = validate_sheet_config(sheets)
-        if sheet_errors:
-            messagebox.showerror(
-                "Invalid sheet list",
-                "Please fix the sheet configuration before building:\n\n"
-                + "\n".join(sheet_errors[:10]),
+                "Invalid sheet list", "\n".join(errors[:10])
             )
             return
 
         self._build_running = True
-        self.run_btn.configure(state="disabled", text="  Building...  ")
-        self.open_btn.configure(state="disabled")
+        self.build_button.configure(state="disabled", text="Building...")
+        self.open_button.configure(state="disabled")
         self.progress["value"] = 0
-        self.progress_label.configure(text="Preparing build...")
 
-        project_config = {
-            "project_title": self.v_proj_title.get(),
-            "project_address": self.v_proj_addr.get(),
-            "project_number": self.v_proj_number.get(),
-            "client_name": self.v_client.get(),
-            "drawn_by": self.v_drawn.get(),
-            "designed_by": self.v_designed.get(),
-            "approved_by": self.v_approved.get(),
-            "date": self.v_date.get(),
-            "drawing_status": self.v_status.get(),
-            "sheet_prefix": self.v_prefix.get(),
-            "company_name": self.v_company_name.get().strip(),
-            "company_address": self.v_company_address.get().strip(),
-            "company_phone": self.v_company_phone.get().strip(),
-            "company_email": self.v_company_email.get().strip(),
-            "company_website": self.v_company_website.get().strip(),
-        }
         logo_path = (
             resolve_optional_path(
-                self._loaded_config_path, self.v_logo_path.get().strip()
+                self._loaded_config_path,
+                self.fields["logo_path"].get().strip(),
             )
             or None
         )
         template_path = (
             resolve_optional_path(
-                self._loaded_config_path, self.v_template_path.get().strip()
+                self._loaded_config_path,
+                self.fields["template_path"].get().strip(),
             )
             or None
         )
+        exports_dir = self.exports_dir.get().strip()
 
-        def progress_cb(current, total, msg):
-            self._event_queue.put(("progress", current, total, msg))
+        def progress(current, total, message):
+            self._events.put(
+                ("progress", current, total, message)
+            )
 
-        def run():
+        def worker():
             try:
                 result = build_appendix(
-                    exports_dir=exports,
-                    output_path=output,
-                    project_config=project_config,
-                    sheets=sheets,
-                    logo_path=logo_path,
-                    template_path=template_path,
-                    on_progress=progress_cb,
+                    exports_dir,
+                    output,
+                    self._project_config(),
+                    sheets,
+                    logo_path,
+                    template_path,
+                    progress,
                 )
-                self._event_queue.put(("complete", result))
+                self._events.put(("complete", result))
             except Exception as exc:
-                import traceback
+                self._events.put(("error", str(exc)))
 
-                self._event_queue.put(("error", str(exc), traceback.format_exc()))
+        threading.Thread(target=worker, daemon=True).start()
 
-        threading.Thread(target=run, daemon=True).start()
-
-    def _process_ui_events(self):
+    def _process_events(self):
         try:
             while True:
-                event = self._event_queue.get_nowait()
+                event = self._events.get_nowait()
                 kind = event[0]
                 if kind == "progress":
-                    _, current, total, msg = event
-                    self.progress["value"] = (current / max(total, 1)) * 100
-                    self.progress_label.configure(text=msg)
-                    self._log(msg)
+                    _, current, total, message = event
+                    self.progress["value"] = (
+                        current / max(total, 1) * 100
+                    )
+                    self.progress_label.configure(text=message)
+                    self._write_log(message)
                 elif kind == "complete":
-                    self._on_build_complete(event[1])
+                    self._finish_build(event[1])
                 elif kind == "error":
-                    self._on_build_error(event[1], event[2])
+                    self._fail_build(event[1])
         except queue.Empty:
             pass
         finally:
-            self.root.after(100, self._process_ui_events)
+            self.root.after(100, self._process_events)
 
-    def _on_build_complete(self, result):
-        self._build_running = False
-        self.run_btn.configure(state="normal", text="  Build Appendix PPTX  ")
-        self.open_btn.configure(state="normal")
+    def _finish_build(self, result):
+        self._reset_build_controls()
         self.progress["value"] = 100
-
-        built = result["slides_built"]
-        missing = result["missing"]
-        output = result["output_path"]
-        self._log(f"\nBuilt {built} slides -> {output}")
-
-        if missing:
-            self._log(f"\n{len(missing)} image(s) were missing:")
-            for num, title, pattern in missing:
-                self._log(f"   Sheet {num} - {title}: no file matching '{pattern}'")
+        self._write_log(
+            f"Built {result['slides_built']} slides: "
+            f"{result['output_path']}"
+        )
+        if result["missing"]:
             messagebox.showwarning(
                 "Build complete with warnings",
-                (
-                    f"{built} slides built.\n\n{len(missing)} image(s) were "
-                    f"missing and replaced with placeholders.\n\nOutput saved "
-                    f"to:\n{output}"
-                ),
+                f"Built {result['slides_built']} slides. "
+                f"{len(result['missing'])} image(s) were replaced "
+                "with placeholders.",
             )
         else:
             messagebox.showinfo(
                 "Build complete",
-                f"All {built} slides built successfully.\n\nOutput saved to:\n{output}",
+                f"Built {result['slides_built']} slides.\n\n"
+                f"{result['output_path']}",
             )
 
-    def _on_build_error(self, msg, tb):
+    def _fail_build(self, message):
+        self._reset_build_controls()
+        self._write_log(f"ERROR: {message}")
+        messagebox.showerror("Build failed", message)
+
+    def _reset_build_controls(self):
         self._build_running = False
-        self.run_btn.configure(state="normal", text="  Build Appendix PPTX  ")
-        self.open_btn.configure(state="normal")
-        self._log(f"\nError: {msg}")
-        self._log(tb)
-        messagebox.showerror(
-            "Build failed", f"An error occurred:\n{msg}\n\nSee log for details."
+        self.build_button.configure(
+            state="normal", text="Build Appendix PPTX"
         )
+        self.open_button.configure(state="normal")
+
+    def _write_log(self, message):
+        self.log.configure(state="normal")
+        self.log.insert("end", message + "\n")
+        self.log.see("end")
+        self.log.configure(state="disabled")
 
     def _open_output_folder(self):
-        path = self.v_output_path.get().strip()
-        folder = os.path.dirname(path) if path else None
-        if folder and os.path.isdir(folder):
-            if sys.platform == "win32":
-                os.startfile(folder)
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", folder])
-            else:
-                subprocess.Popen(["xdg-open", folder])
+        output = self.output_path.get().strip()
+        folder = os.path.dirname(output)
+        if not folder or not os.path.isdir(folder):
+            return
+        if sys.platform == "win32":
+            os.startfile(folder)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
 
     def _load_config(self):
         path = filedialog.askopenfilename(
-            filetypes=[("JSON", "*.json")], title="Load project_config.json"
+            title="Load project configuration",
+            filetypes=[("JSON", "*.json")],
         )
         if not path:
             return
-        cfg = load_project_config(path)
-        self._loaded_config_path = path
-        self.v_proj_title.set(cfg.get("project_title", ""))
-        self.v_proj_addr.set(cfg.get("project_address", ""))
-        self.v_proj_number.set(cfg.get("project_number", ""))
-        self.v_client.set(cfg.get("client_name", ""))
-        self.v_drawn.set(cfg.get("drawn_by", ""))
-        self.v_designed.set(cfg.get("designed_by", ""))
-        self.v_approved.set(cfg.get("approved_by", ""))
-        self.v_date.set(cfg.get("date", ""))
-        self.v_status.set(cfg.get("drawing_status", "FOR INFORMATION"))
-        self.v_prefix.set(cfg.get("sheet_prefix", "A"))
-        self.v_logo_path.set(cfg.get("logo_path", ""))
-        self.v_template_path.set(cfg.get("template_path", ""))
-        self.v_company_name.set(cfg.get("company_name", "PTG CONSULTING"))
-        self.v_company_address.set(
-            cfg.get(
-                "company_address",
-                "Level 3, 159 Coronation Drive (CNR Cribb St), Milton QLD 4064",
+        try:
+            config = load_project_config(path)
+        except Exception as exc:
+            messagebox.showerror(
+                "Unable to load configuration", str(exc)
             )
-        )
-        self.v_company_phone.set(cfg.get("company_phone", "(07) 3444 6666"))
-        self.v_company_email.set(cfg.get("company_email", "admin@ptgconsulting.com.au"))
-        self.v_company_website.set(
-            cfg.get("company_website", "www.ptgconsulting.com.au")
-        )
-        self._refresh_sheet_table()
-        self._log(f"Loaded config: {path}")
+            return
+        self._loaded_config_path = path
+        for key, variable in self.fields.items():
+            variable.set(config.get(key, ""))
+        self._write_log(f"Loaded configuration: {path}")
 
     def _save_config(self):
         path = filedialog.asksaveasfilename(
+            title="Save project configuration",
             defaultextension=".json",
             filetypes=[("JSON", "*.json")],
-            title="Save project config",
         )
         if not path:
             return
-        cfg = {
-            "project_title": self.v_proj_title.get(),
-            "project_address": self.v_proj_addr.get(),
-            "project_number": self.v_proj_number.get(),
-            "client_name": self.v_client.get(),
-            "drawn_by": self.v_drawn.get(),
-            "designed_by": self.v_designed.get(),
-            "approved_by": self.v_approved.get(),
-            "date": self.v_date.get(),
-            "drawing_status": self.v_status.get(),
-            "sheet_prefix": self.v_prefix.get(),
-            "logo_path": self.v_logo_path.get(),
-            "template_path": self.v_template_path.get(),
-            "company_name": self.v_company_name.get(),
-            "company_address": self.v_company_address.get(),
-            "company_phone": self.v_company_phone.get(),
-            "company_email": self.v_company_email.get(),
-            "company_website": self.v_company_website.get(),
-        }
+        config = self._project_config()
+        config["logo_path"] = self.fields["logo_path"].get().strip()
+        config["template_path"] = (
+            self.fields["template_path"].get().strip()
+        )
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(cfg, handle, indent=2)
-        self._log(f"Saved config: {path}")
-        messagebox.showinfo("Saved", f"Config saved to:\n{path}")
+            json.dump(config, handle, indent=2)
+        self._loaded_config_path = path
+        self._write_log(f"Saved configuration: {path}")
 
-    def _create_template_config(self):
+    def _create_config_template(self):
         path = filedialog.asksaveasfilename(
-            defaultextension=".json",
+            title="Create configuration template",
             initialfile="project_config.json",
+            defaultextension=".json",
             filetypes=[("JSON", "*.json")],
-            title="Save template config",
         )
         if path:
             save_default_config(path)
-            self._log(f"Template config created: {path}")
             messagebox.showinfo(
                 "Created",
-                f"Template config saved to:\n{path}\n\nEdit it and load it for each project.",
+                f"Configuration template saved to:\n{path}",
             )
 
-    def _create_template_csv(self):
+    def _create_csv_template(self):
         path = filedialog.asksaveasfilename(
-            defaultextension=".csv",
+            title="Create sheet CSV template",
             initialfile="sheets.csv",
+            defaultextension=".csv",
             filetypes=[("CSV", "*.csv")],
-            title="Save template sheets.csv",
         )
         if path:
             save_default_sheet_csv(path)
-            self.v_sheets_csv.set(path)
-            self._refresh_sheet_table()
-            self._log(f"Template sheets.csv created: {path}")
+            self.sheets_csv.set(path)
             messagebox.showinfo(
                 "Created",
-                f"Template sheets.csv saved to:\n{path}\n\nEdit it to customise your sheet list.",
+                f"Sheet CSV template saved to:\n{path}",
             )
