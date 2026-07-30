@@ -1,4 +1,6 @@
-"""Build an A1 landscape appendix presentation from engineering images."""
+"""Build an A1 landscape fieldwork-plan presentation from uploaded images."""
+
+from __future__ import annotations
 
 import os
 import tempfile
@@ -22,21 +24,21 @@ from utils.titleblock_constants import (
 from utils.titleblock_renderer import draw_titleblock
 
 
-def _remove_all_slides(presentation):
+def _remove_all_slides(presentation: Presentation) -> None:
     slide_ids = list(presentation.slides._sldIdLst)
     for slide_id in slide_ids:
         presentation.part.drop_rel(slide_id.rId)
         presentation.slides._sldIdLst.remove(slide_id)
 
 
-def _blank_layout(presentation):
+def _blank_layout(presentation: Presentation):
     for layout in presentation.slide_layouts:
         if layout.name.lower() == "blank":
             return layout
     return presentation.slide_layouts[-1]
 
 
-def _fit_image(width_px, height_px, box_width_mm, box_height_mm):
+def _fit_image(width_px: int, height_px: int, box_width_mm: float, box_height_mm: float):
     if width_px <= 0 or height_px <= 0:
         raise ValueError("Image dimensions must be positive.")
     image_ratio = width_px / height_px
@@ -52,7 +54,7 @@ def _fit_image(width_px, height_px, box_width_mm, box_height_mm):
     return left, top, width, height
 
 
-def _missing_placeholder(slide, sheet, reason):
+def _missing_placeholder(slide, sheet: dict, reason: str) -> None:
     shape = slide.shapes.add_shape(
         1,
         Mm(CONTENT_L),
@@ -61,8 +63,8 @@ def _missing_placeholder(slide, sheet, reason):
         Mm(CONTENT_H),
     )
     shape.fill.solid()
-    shape.fill.fore_color.rgb = RGBColor(0xF3, 0xF3, 0xF3)
-    shape.line.color.rgb = RGBColor(0xC8, 0xC8, 0xC8)
+    shape.fill.fore_color.rgb = RGBColor(0xF3, 0xF4, 0xF6)
+    shape.line.color.rgb = RGBColor(0xD1, 0xD5, 0xDB)
     frame = shape.text_frame
     frame.clear()
     frame.word_wrap = True
@@ -73,21 +75,21 @@ def _missing_placeholder(slide, sheet, reason):
     title_run.font.name = "Arial"
     title_run.font.size = Pt(18)
     title_run.font.bold = True
-    title_run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+    title_run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
     detail = frame.add_paragraph()
     detail.alignment = PP_ALIGN.CENTER
     detail_run = detail.add_run()
     detail_run.text = reason
     detail_run.font.name = "Arial"
     detail_run.font.size = Pt(10)
-    detail_run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+    detail_run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
 
 
-def build_appendix(
+def build_fieldwork_plan(
     exports_dir: str,
     output_path: str,
     project_config: dict,
-    sheets: list,
+    sheets: list[dict],
     logo_path: str | None = None,
     template_path: str | None = None,
     on_progress=None,
@@ -97,26 +99,23 @@ def build_appendix(
     if not sheets:
         raise ValueError("At least one sheet is required.")
 
-    presentation = (
-        Presentation(template_path)
-        if template_path and os.path.isfile(template_path)
-        else Presentation()
-    )
+    if template_path:
+        if not os.path.isfile(template_path):
+            raise FileNotFoundError("The uploaded PowerPoint template could not be found.")
+        presentation = Presentation(template_path)
+    else:
+        presentation = Presentation()
+
     presentation.slide_width = Mm(SLIDE_W_MM)
     presentation.slide_height = Mm(SLIDE_H_MM)
     _remove_all_slides(presentation)
     layout = _blank_layout(presentation)
 
-    missing = []
+    missing: list[tuple] = []
     total = len(sheets)
-
     for index, sheet in enumerate(sheets, 1):
         if on_progress:
-            on_progress(
-                index,
-                total,
-                f"Building sheet {sheet.get('sheet_number', '?')}",
-            )
+            on_progress(index, total, f"Building plan {sheet.get('sheet_number', '?')}")
         slide = presentation.slides.add_slide(layout)
         slide.background.fill.solid()
         slide.background.fill.fore_color.rgb = WHITE
@@ -126,18 +125,14 @@ def build_appendix(
             {
                 key: value
                 for key, value in sheet.items()
-                if key != "filename_pattern"
+                if key not in {"filename_pattern", "source_path"}
             }
         )
         draw_titleblock(slide, fields, logo_path=logo_path)
 
         source_path = str(sheet.get("source_path", "")).strip()
         pattern = str(sheet.get("filename_pattern", "")).strip()
-        image_path = (
-            source_path
-            if source_path and os.path.isfile(source_path)
-            else None
-        )
+        image_path = source_path if source_path and os.path.isfile(source_path) else None
         if image_path is None and pattern:
             image_path = find_image(exports_dir, pattern)
 
@@ -159,11 +154,7 @@ def build_appendix(
                     Mm(height),
                 )
             except Exception as exc:
-                _missing_placeholder(
-                    slide,
-                    sheet,
-                    f"Unable to read image: {exc}",
-                )
+                _missing_placeholder(slide, sheet, f"Unable to read image: {exc}")
                 missing.append(
                     (
                         sheet.get("sheet_number"),
@@ -192,12 +183,12 @@ def build_appendix(
     absolute_output = os.path.abspath(output_path)
     output_directory = os.path.dirname(absolute_output)
     os.makedirs(output_directory, exist_ok=True)
-    file_descriptor, temporary_path = tempfile.mkstemp(
-        prefix="appendix-",
+    descriptor, temporary_path = tempfile.mkstemp(
+        prefix="fieldwork-plan-",
         suffix=".pptx",
         dir=output_directory,
     )
-    os.close(file_descriptor)
+    os.close(descriptor)
     try:
         presentation.save(temporary_path)
         os.replace(temporary_path, absolute_output)
@@ -210,3 +201,6 @@ def build_appendix(
         "missing": missing,
         "output_path": absolute_output,
     }
+
+
+build_appendix = build_fieldwork_plan
