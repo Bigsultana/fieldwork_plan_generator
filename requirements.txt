@@ -1,0 +1,5 @@
+# requirements.txt - Appendix Builder
+# Install with: pip install -r requirements.txt
+Pillow==12.2.0
+lxml==6.0.4
+python-pptx==1.0.2
