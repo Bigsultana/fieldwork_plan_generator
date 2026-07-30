@@ -1,60 +1,46 @@
-# AGENTS.md — Appendix Builder
+# AGENTS.md — Fieldwork Plan Generator
 
-This file defines the operating constraints for automated implementation work in this repository.
+## Product identity
 
-## Application identity
+This repository contains **Fieldwork Plan Generator**, a FastAPI browser application that generates A1 landscape PowerPoint fieldwork plans from uploaded engineering images.
 
-The source implements **Appendix Builder**. The current repository name is `fieldwork_plan_generator`; do not infer additional fieldwork-planning functionality unless the owner explicitly requests it.
-
-## Repository scope
-
-- Work only inside this repository.
-- Use repository-relative paths.
-- Develop changes on a branch and merge through a pull request.
-- Do not introduce company-specific branding, contact details, templates or drawing assets into source defaults.
+Do not reintroduce the previous desktop Appendix Builder identity or company-specific branding.
 
 ## Source of truth
 
-Read these files before significant changes:
+Read before modifying the application:
 
-1. `docs/BASELINE.md`
-2. `README.md`
-3. `tool-info.json`
-4. `CHANGELOG.md`
-5. `docs/REVIEW.md`
+1. `README.md`
+2. `tool-info.json`
+3. `CHANGELOG.md`
+4. `docs/BASELINE.md`
 
-## Setup and quality gates
+## Architecture
+
+- `source/web_app.py` owns HTTP routes, validation, temporary uploads and file responses.
+- `source/templates/` and `source/static/` own the browser interface.
+- `source/utils/` owns PowerPoint generation and must remain usable without the HTTP layer.
+- Uploaded files must remain temporary and must be deleted after the response.
+- Never trust client-provided filesystem paths.
+
+## Quality gates
+
+Run:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\setup.ps1
 .\scripts\test.ps1
 ```
 
-Where a check cannot run, report the exact blocker and do not claim it passed.
+At minimum, compile all Python files and run all automated tests. Any behaviour change requires a corresponding test.
 
-## Change discipline
+## Security constraints
 
-- Keep hardening changes separate from feature changes where practical.
-- Add or update tests whenever behaviour changes.
-- Keep all paths repository-relative.
-- Keep the built-in title block neutral and configurable.
-- Do not commit secrets, credentials, personal databases, virtual environments, caches, generated presentations or temporary output.
-- Do not add a corporate logo, company name, company contact information or proprietary template without explicit owner approval.
+- Validate extensions and file counts before generation.
+- Enforce upload-size limits.
+- Use generated temporary filenames rather than uploaded paths.
+- Do not persist user uploads or project data without an explicit product decision.
+- Do not commit credentials or deployment secrets.
 
-## Versioning
+## Publishing
 
-When application code changes:
-
-- update `tool-info.json`;
-- update `CHANGELOG.md`;
-- update user documentation where behaviour changes; and
-- record significant design decisions in `docs/REVIEW.md`.
-
-## Commit examples
-
-```text
-chore: remove generated files
-fix: reject invalid sheet CSV
-feat: add editable revision register
-```
+Develop on a branch, open a pull request, ensure GitHub Actions passes, then squash merge to `main`.

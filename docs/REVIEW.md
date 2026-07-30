@@ -1,30 +1,32 @@
-# Tool Review — Appendix Builder 2.1.0
+# Tool Review — Fieldwork Plan Generator 1.0.0
 
 **Date:** 30 July 2026  
-**Scope:** Neutral baseline hardening
+**Scope:** Browser-operational baseline
 
 ## What changed
 
-The application was converted from a company-specific internal presentation tool into a neutral Appendix Builder. Corporate defaults and bundled assets were removed. The title-block renderer was replaced with a generic layout, and setup, testing and packaging instructions were made repository-relative.
+The product was renamed to Fieldwork Plan Generator and converted from a Tkinter desktop utility into a FastAPI browser application. The PowerPoint engine remains separated from the HTTP layer, while uploads are validated, processed in temporary directories and deleted after download.
 
 ## What works well
 
-- Presentation generation is separated from the GUI.
-- Company identity is provided through configuration rather than source defaults.
-- Missing images produce visible placeholders.
-- Images retain their aspect ratio.
-- Output is written through a temporary file before replacement.
-- Tests use isolated temporary directories.
+- Browser interface supports project details, multiple image uploads and an editable sheet register.
+- Generated PowerPoint files preserve image aspect ratio and use a neutral A1 title block.
+- Company details, logo and PowerPoint template remain user-configurable.
+- The API returns a direct browser download and exposes a deployment health endpoint.
+- Builder and browser/API tests use isolated temporary data.
+- Docker and Render deployment configuration are included.
+- GitHub Actions checks both automated tests and the Docker build.
 
 ## Remaining risks
 
 - The presentation builder still uses a private python-pptx slide-list interface when clearing template slides.
-- The GUI does not yet have automated interaction tests.
-- The packaged executable has not yet been verified on a clean Windows workstation.
-- The repository name remains inconsistent with the application name.
+- There is no authentication, database or permanent project storage.
+- Reverse-proxy and hosting upload limits may be lower than the application limit.
+- The permanent production hosting account still needs to be connected to the repository.
 
 ## Validation completed
 
-- Python source compilation passed.
-- Two automated tests passed, including presentation generation and duplicate sheet-number validation.
-- Formatting and lint tools were unavailable in the execution environment and must be run through `scripts/test.ps1` on Windows before release.
+- Python compilation passed.
+- Six automated tests passed.
+- A live local Uvicorn server returned healthy responses for `/` and `/health`.
+- A multipart browser/API test generated a readable PowerPoint file.

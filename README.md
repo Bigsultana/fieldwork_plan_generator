@@ -1,87 +1,125 @@
-# Appendix Builder
+# Fieldwork Plan Generator
 
-Appendix Builder is a neutral Windows desktop application for assembling exported engineering images into an A1 landscape PowerPoint appendix.
+Fieldwork Plan Generator is a browser-based engineering utility for turning uploaded plans, maps, cross-sections and marked-up images into a formatted A1 landscape PowerPoint fieldwork plan.
 
-**Version:** 2.1.0  
-**Status:** Baseline hardening  
+**Version:** 1.0.0  
+**Status:** Browser-operational baseline  
 **Owner:** Matthew Raison
 
-> The repository is currently named `fieldwork_plan_generator`, while the application contained within it is Appendix Builder. This naming decision remains separate from application branding.
+## Current capability
 
-## What it does
+The web application lets a user:
 
-The application:
+- enter project, client, approval and title-block information;
+- upload multiple engineering images;
+- automatically create and edit a sheet register;
+- optionally import sheet metadata from CSV;
+- optionally upload a company logo and PowerPoint template;
+- generate a neutral A1 title block for every uploaded image; and
+- download the completed `.pptx` directly in the browser.
 
-- collects project, client, drawing and company details;
-- creates a sheet register from selected images, a folder, or a CSV file;
-- places each image on an A1 landscape PowerPoint slide;
-- draws a neutral, editable title block;
-- accepts an optional company logo and optional PowerPoint template;
-- preserves image aspect ratio inside the drawing area;
-- inserts a labelled placeholder where an image is missing or unreadable; and
-- saves the completed appendix as a `.pptx` file.
+Uploaded files are stored only in a temporary request directory and are deleted after the download response is sent.
 
-No company identity, contact details, logo, drawing template, or corporate asset is bundled or assumed by default.
+## Run locally in a browser
 
-## Repository structure
-
-```text
-source/                  Application source
-source/main.py           Desktop application entry point
-source/utils/            Presentation, configuration and title-block logic
-tests/                   Automated tests
-dist/                    PyInstaller specification
-scripts/                 Setup, run and quality-gate scripts
-docs/                    Baseline and review documentation
-requirements.txt         Runtime dependencies
-requirements-dev.txt     Development dependencies
-```
-
-## Supported environment
-
-- Windows 10 or Windows 11
-- Python 3.13
-- Windows PowerShell
-- Microsoft PowerPoint or another compatible application for reviewing output
-
-## Setup
-
-From the repository root:
+### Windows
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\setup.ps1
-```
-
-## Run
-
-```powershell
 .\scripts\run.ps1
 ```
 
-## Test
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+### macOS or Linux
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+python source/main.py
+```
+
+## Run with Docker
+
+```bash
+docker build -t fieldwork-plan-generator .
+docker run --rm -p 8000:8000 fieldwork-plan-generator
+```
+
+Open `http://127.0.0.1:8000`.
+
+## Deploy to a hosted browser URL
+
+The repository includes `render.yaml` and a production Dockerfile.
+
+On Render:
+
+1. Create a new Blueprint.
+2. Connect this GitHub repository.
+3. Render detects `render.yaml` and builds the Docker service.
+4. Confirm the `/health` endpoint is healthy.
+
+The application is also compatible with container hosts that accept a Dockerfile and provide a `PORT` environment variable.
+
+## CSV format
+
+CSV import is optional and is applied to selected images by row order. Supported headings are:
+
+```csv
+sheet_number,drawing_title_1,drawing_title_2,scale,revision
+001,Test Location Plan,Proposed investigation locations,NTS,A
+002,Site Access Plan,Access and exclusion zones,NTS,A
+```
+
+## API
+
+- `GET /` — browser interface
+- `GET /health` — deployment health check
+- `POST /api/generate` — multipart PowerPoint generation endpoint
+- `GET /docs` — automatically generated API documentation
+
+## Development checks
 
 ```powershell
 .\scripts\test.ps1
 ```
 
-The quality-gate script performs Python compilation, formatting verification, linting and automated tests.
+Or:
 
-## Application workflow
+```bash
+PYTHONPATH=source python -m compileall -q source tests
+PYTHONPATH=source python -m unittest discover -s tests -p 'test_*.py'
+```
 
-1. Enter project and title-block information.
-2. Optionally provide a logo or PowerPoint template.
-3. Select the sheet source:
-   - **Selected Images** for an editable in-application register.
-   - **Folder Order** to use supported image files sorted by filename.
-   - **CSV** to use a saved register.
-4. Choose an output `.pptx` path.
-5. Select **Build Appendix PPTX**.
-6. Review the output and any missing-image warnings.
+GitHub Actions runs the automated tests and builds the Docker image for each pull request.
 
-## Default title block
+## Repository structure
 
-The built-in title block is deliberately neutral. Company fields are blank except for the placeholder `COMPANY NAME`. Users can save their own project configuration or provide their own logo and template without modifying source code.
+```text
+source/web_app.py             FastAPI application and upload pipeline
+source/main.py                Local development server entry point
+source/templates/index.html   Browser interface
+source/static/                Browser JavaScript and styling
+source/utils/                 PowerPoint generation and title-block engine
+tests/                        Builder and browser/API tests
+.github/workflows/quality.yml Continuous integration
+Dockerfile                    Production container
+render.yaml                   Render deployment blueprint
+```
+
+## Current limits
+
+- Maximum 60 images per generation request.
+- Maximum 35 MB per uploaded file.
+- Generated output is PowerPoint only.
+- Browser settings are stored in local browser storage; there is no user account or server-side project database yet.
+- Hosted free-tier services may sleep between uses and may impose their own request-size or execution-time limits.
 
 ## Licence
 

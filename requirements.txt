@@ -1,4 +1,7 @@
-# Runtime dependencies for Appendix Builder
+fastapi==0.128.2
+uvicorn[standard]==0.48.0
+Jinja2==3.1.6
+python-multipart==0.0.29
 Pillow==12.2.0
-lxml==6.0.4
+lxml==6.1.1
 python-pptx==1.0.2

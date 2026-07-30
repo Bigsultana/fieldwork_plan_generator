@@ -1,33 +1,28 @@
-# Changelog — Appendix Builder
+# Changelog — Fieldwork Plan Generator
 
-## [2.1.0] — 2026-07-30
+## [1.0.0] - 2026-07-30
 
-### Changed
+### Added
 
-- Replaced company-specific presentation formatting with a neutral A1 title block.
-- Removed bundled corporate templates, drawings, names, contact details and colour identifiers.
-- Changed application and executable labels to `Appendix Builder`.
-- Changed default company fields to neutral placeholders or blank values.
-- Replaced startup-time package installation with a setup-script workflow.
-- Updated the smoke test to use temporary output and generic sample data.
-
-### Repository
-
-- Added repository ignore rules.
-- Removed tracked caches and generated test output.
-- Added repository-local setup, run and test scripts.
-- Added baseline and review documentation.
-
-## [2.0.3] — 2026-04-29
+- FastAPI browser application.
+- Responsive project and title-block form.
+- Multi-image upload and editable sheet register.
+- Optional CSV metadata import.
+- Optional company logo and PowerPoint template uploads.
+- Direct browser download of generated PowerPoint files.
+- Temporary-file cleanup after each request.
+- Health endpoint and automatic API documentation.
+- Dockerfile and Render deployment blueprint.
+- GitHub Actions tests and Docker build checks.
+- Browser/API and PowerPoint-builder automated tests.
 
 ### Changed
 
-- Stabilised formatting and lint compliance in the migrated source.
-- Added a basic presentation-generation smoke test.
-- Corrected bundled-path handling used by the earlier internal version.
+- Renamed the product to Fieldwork Plan Generator.
+- Replaced the Tkinter desktop interface with a browser interface.
+- Renamed the primary builder API to `build_fieldwork_plan` while retaining a compatibility alias.
 
-## [2.0.0] — 2026-04-14
+### Removed
 
-### Changed
-
-- Migrated the second-generation appendix-building workflow into a structured Python application.
+- Desktop-only application entry flow.
+- PyInstaller packaging configuration.
