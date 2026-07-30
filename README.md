@@ -1,53 +1,50 @@
 # Appendix Builder
 
-> Creates A1 landscape PowerPoint appendices from exported engineering images using a PTG Consulting title block.
+Appendix Builder is a neutral Windows desktop application for assembling exported engineering images into an A1 landscape PowerPoint appendix.
 
-**Version:** 2.0.3  
+**Version:** 2.1.0  
 **Status:** Baseline hardening  
 **Owner:** Matthew Raison
 
-> [!IMPORTANT]
-> The GitHub repository is currently named `fieldwork_plan_generator`, but the uploaded application is Appendix Builder. See [`docs/BASELINE.md`](docs/BASELINE.md) before beginning feature development.
+> The repository is currently named `fieldwork_plan_generator`, while the application contained within it is Appendix Builder. This naming decision remains separate from application branding.
 
-## What the application does
+## What it does
 
-Appendix Builder is a Python/Tkinter desktop application that:
+The application:
 
-- collects project, client, drawing and company information;
+- collects project, client, drawing and company details;
 - creates a sheet register from selected images, a folder, or a CSV file;
 - places each image on an A1 landscape PowerPoint slide;
-- draws a PTG-formatted title block using DXF-derived geometry;
+- draws a neutral, editable title block;
+- accepts an optional company logo and optional PowerPoint template;
 - preserves image aspect ratio inside the drawing area;
-- inserts a labelled placeholder when an image cannot be found or read; and
+- inserts a labelled placeholder where an image is missing or unreadable; and
 - saves the completed appendix as a `.pptx` file.
 
-Typical source images include test-location plans, cross-sections and other figures prepared for engineering reports.
+No company identity, contact details, logo, drawing template, or corporate asset is bundled or assumed by default.
 
 ## Repository structure
 
 ```text
-assets/                  Bundled PowerPoint template and title-block DXF
 source/                  Application source
 source/main.py           Desktop application entry point
-source/utils/            PowerPoint, configuration and title-block logic
-tests/                   Automated smoke tests
+source/utils/            Presentation, configuration and title-block logic
+tests/                   Automated tests
 dist/                    PyInstaller specification
-scripts/                 Fresh-clone setup, run and test commands
+scripts/                 Setup, run and quality-gate scripts
 docs/                    Baseline and review documentation
 requirements.txt         Runtime dependencies
-requirements-dev.txt     Runtime and development dependencies
+requirements-dev.txt     Development dependencies
 ```
 
 ## Supported environment
 
-The current supported development environment is:
+- Windows 10 or Windows 11
+- Python 3.13
+- Windows PowerShell
+- Microsoft PowerPoint or another compatible application for reviewing output
 
-- Windows 10 or Windows 11;
-- Python 3.13;
-- Windows PowerShell; and
-- Microsoft PowerPoint or another compatible application for reviewing output.
-
-## Fresh-clone setup
+## Setup
 
 From the repository root:
 
@@ -56,63 +53,35 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\setup.ps1
 ```
 
-This creates `.venv` and installs the pinned runtime and development dependencies.
-
-## Run the application
+## Run
 
 ```powershell
 .\scripts\run.ps1
 ```
 
-The direct equivalent is:
-
-```powershell
-.\.venv\Scripts\python.exe .\source\main.py
-```
-
-## Run the quality gates
+## Test
 
 ```powershell
 .\scripts\test.ps1
 ```
 
-The script runs:
-
-1. Python bytecode compilation;
-2. Black formatting verification;
-3. Flake8 linting; and
-4. the unittest suite.
+The quality-gate script performs Python compilation, formatting verification, linting and automated tests.
 
 ## Application workflow
 
-1. Enter the project and title-block information.
-2. Select the exported figures using one of the following modes:
-   - **Selected images** — choose and edit individual sheets in the application.
-   - **Folder order** — build sheets from supported images sorted by filename.
-   - **CSV** — load a saved sheet register.
-3. Choose the output `.pptx` path.
-4. Select **Build Appendix PPTX**.
-5. Review the build log and any missing-image warnings.
+1. Enter project and title-block information.
+2. Optionally provide a logo or PowerPoint template.
+3. Select the sheet source:
+   - **Selected Images** for an editable in-application register.
+   - **Folder Order** to use supported image files sorted by filename.
+   - **CSV** to use a saved register.
+4. Choose an output `.pptx` path.
+5. Select **Build Appendix PPTX**.
+6. Review the output and any missing-image warnings.
 
-## Bundled assets
+## Default title block
 
-- `assets/PTG_Appendix_Template.pptx`
-- `assets/A1 HORIZONTAL - PTG CONSULTING_COMMERCIAL - Sheet - A1 - PTG - Horizontal.dxf`
-
-These assets are proprietary project assets and should not be redistributed without authorisation.
-
-## Current limitations
-
-The repository is undergoing baseline hardening. Known follow-up work includes:
-
-- resolving the repository/application naming mismatch;
-- confirming appropriate repository visibility for PTG-branded assets;
-- removing already tracked generated test artefacts and Python caches;
-- adding continuous integration and branch protection;
-- replacing startup-time package installation with controlled deployment; and
-- validating the packaged executable from a fresh clone.
-
-See [`docs/BASELINE.md`](docs/BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md) for the current status.
+The built-in title block is deliberately neutral. Company fields are blank except for the placeholder `COMPANY NAME`. Users can save their own project configuration or provide their own logo and template without modifying source code.
 
 ## Licence
 
