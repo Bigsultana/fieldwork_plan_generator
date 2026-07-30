@@ -1,45 +1,119 @@
 # Appendix Builder
 
-> Generates formatted PowerPoint appendix documents from engineering data using a PTG template.
+> Creates A1 landscape PowerPoint appendices from exported engineering images using a PTG Consulting title block.
 
-**Version:** 2.0.3 | **Status:** Active | **Owner:** Matthew Raison
+**Version:** 2.0.3  
+**Status:** Baseline hardening  
+**Owner:** Matthew Raison
 
----
+> [!IMPORTANT]
+> The GitHub repository is currently named `fieldwork_plan_generator`, but the uploaded application is Appendix Builder. See [`docs/BASELINE.md`](docs/BASELINE.md) before beginning feature development.
 
-## What it does
-This tool builds appendix-style PowerPoint deliverables from engineering inputs
-using a PTG presentation template and title-block assets. The migrated source
-includes the Python application entry points, support utilities, build spec, and
-the core template assets needed for output generation.
+## What the application does
 
-## Requirements
-- Python 3.13 in the local workspace venv
-- `python-pptx`
-- PyInstaller only if packaged later
+Appendix Builder is a Python/Tkinter desktop application that:
 
-## How to run
-```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\python.exe" "E:\Home Folder\tools\appendix-builder\source\main.py"
+- collects project, client, drawing and company information;
+- creates a sheet register from selected images, a folder, or a CSV file;
+- places each image on an A1 landscape PowerPoint slide;
+- draws a PTG-formatted title block using DXF-derived geometry;
+- preserves image aspect ratio inside the drawing area;
+- inserts a labelled placeholder when an image cannot be found or read; and
+- saves the completed appendix as a `.pptx` file.
+
+Typical source images include test-location plans, cross-sections and other figures prepared for engineering reports.
+
+## Repository structure
+
+```text
+assets/                  Bundled PowerPoint template and title-block DXF
+source/                  Application source
+source/main.py           Desktop application entry point
+source/utils/            PowerPoint, configuration and title-block logic
+tests/                   Automated smoke tests
+dist/                    PyInstaller specification
+scripts/                 Fresh-clone setup, run and test commands
+docs/                    Baseline and review documentation
+requirements.txt         Runtime dependencies
+requirements-dev.txt     Runtime and development dependencies
 ```
 
-Core assets preserved in:
-- `assets\PTG_Appendix_Template.pptx`
-- `assets\A1 HORIZONTAL - PTG CONSULTING_COMMERCIAL - Sheet - A1 - PTG - Horizontal.dxf`
+## Supported environment
 
-Bundled `assets/...` paths are now resolved from the tool directory, so the app can still find its template assets after workspace moves or when launched from another current working directory.
+The current supported development environment is:
 
-## Changelog
-See [CHANGELOG.md](./CHANGELOG.md)
+- Windows 10 or Windows 11;
+- Python 3.13;
+- Windows PowerShell; and
+- Microsoft PowerPoint or another compatible application for reviewing output.
 
-## Verification
-Run the lightweight smoke test with:
+## Fresh-clone setup
 
-```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\python.exe" -m unittest discover -s "E:\Home Folder\tools\appendix-builder\tests" -p "test_build_smoke.py"
-```
-
-Lint the active source with:
+From the repository root:
 
 ```powershell
-& "E:\Home Folder\_local\python-venv\Scripts\flake8.exe" "E:\Home Folder\tools\appendix-builder\source" --max-line-length=120 --jobs 1
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\setup.ps1
 ```
+
+This creates `.venv` and installs the pinned runtime and development dependencies.
+
+## Run the application
+
+```powershell
+.\scripts\run.ps1
+```
+
+The direct equivalent is:
+
+```powershell
+.\.venv\Scripts\python.exe .\source\main.py
+```
+
+## Run the quality gates
+
+```powershell
+.\scripts\test.ps1
+```
+
+The script runs:
+
+1. Python bytecode compilation;
+2. Black formatting verification;
+3. Flake8 linting; and
+4. the unittest suite.
+
+## Application workflow
+
+1. Enter the project and title-block information.
+2. Select the exported figures using one of the following modes:
+   - **Selected images** — choose and edit individual sheets in the application.
+   - **Folder order** — build sheets from supported images sorted by filename.
+   - **CSV** — load a saved sheet register.
+3. Choose the output `.pptx` path.
+4. Select **Build Appendix PPTX**.
+5. Review the build log and any missing-image warnings.
+
+## Bundled assets
+
+- `assets/PTG_Appendix_Template.pptx`
+- `assets/A1 HORIZONTAL - PTG CONSULTING_COMMERCIAL - Sheet - A1 - PTG - Horizontal.dxf`
+
+These assets are proprietary project assets and should not be redistributed without authorisation.
+
+## Current limitations
+
+The repository is undergoing baseline hardening. Known follow-up work includes:
+
+- resolving the repository/application naming mismatch;
+- confirming appropriate repository visibility for PTG-branded assets;
+- removing already tracked generated test artefacts and Python caches;
+- adding continuous integration and branch protection;
+- replacing startup-time package installation with controlled deployment; and
+- validating the packaged executable from a fresh clone.
+
+See [`docs/BASELINE.md`](docs/BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md) for the current status.
+
+## Licence
+
+Proprietary and confidential. See [`LICENSE`](LICENSE).
