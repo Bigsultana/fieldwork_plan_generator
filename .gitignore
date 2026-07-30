@@ -1,35 +1,16 @@
-# Python bytecode and caches
 __pycache__/
 *.py[cod]
-*$py.class
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
-
-# Virtual environments
 .venv/
 venv/
 env/
-ENV/
-
-# Packaging and build output
 build/
-dist/*.exe
-dist/*.msi
-dist/*.zip
-*.spec.bak
-
-# Generated runtime and test output
-tests/_runtime-smoke-auto/
-tests/runtime-smoke/
-tests/runtime-smoke-cwd/
+dist/
 *.log
 *.tmp
 ~$*
-
-# IDE and OS files
 .vscode/
 .idea/
 .DS_Store
