@@ -1,58 +1,87 @@
-# AGENTS.md - Appendix Builder
+# AGENTS.md — Appendix Builder
 
-> This file is read by Codex at the start of every execution session.
-> It defines Codex's role, constraints, and behaviour for this tool.
+This file defines the operating constraints for automated implementation work in this repository.
 
----
+## Application identity
 
-## Codex Role For This Tool
-Codex is the **implementation agent** for Appendix Builder.
-Claude handles architecture, planning, and review.
-Codex handles file creation, code writing, and execution.
+The source currently implements **Appendix Builder**, even though the repository is named `fieldwork_plan_generator`. Read `docs/BASELINE.md` before planning changes. Do not reinterpret the application as a fieldwork plan generator without an explicit owner decision.
 
-## Workspace Constraints (Non-Negotiable)
-- Root: `E:\Home Folder`
-- Stay within `E:\Home Folder` at all times
-- Python: `& "E:\Home Folder\_local\python-venv\Scripts\python.exe"`
-- Pip: `& "E:\Home Folder\_local\python-venv\Scripts\pip.exe"`
-- No system-wide installs
-- Local Git only
+## Repository scope
 
-## Tool Location
-`E:\Home Folder\tools\appendix-builder\`
+- Work only inside this repository.
+- Use repository-relative paths.
+- Do not rely on `E:\Home Folder`, external registries, or utilities that are not committed here.
+- Preserve the original upload on `archive/github-upload-2026-07-30`.
+- Develop changes on a branch and merge through a pull request.
 
-## Source Of Truth
-Before modifying any file, read:
-1. `tools/appendix-builder/CLAUDE.md` - design decisions and constraints
-2. `tools/appendix-builder/tool-info.json` - current version and status
-3. `tools/appendix-builder/CHANGELOG.md` - what has changed
+## Source of truth
 
-## Quality Gates (Must Pass Before Reporting Complete)
+Before modifying the application, read:
+
+1. `docs/BASELINE.md` — current identity, scope and unresolved decisions.
+2. `README.md` — supported setup and user workflow.
+3. `tool-info.json` — application metadata.
+4. `CHANGELOG.md` — recorded changes.
+5. `docs/REVIEW.md` — historical implementation notes.
+
+## Setup
+
+From the repository root on Windows:
+
 ```powershell
-# Run these from E:\Home Folder
-& "E:\Home Folder\_local\python-venv\Scripts\black.exe" tools/appendix-builder/source/
-& "E:\Home Folder\_local\python-venv\Scripts\flake8.exe" tools/appendix-builder/source/ --max-line-length=120 --jobs 1
-& "E:\Home Folder\_local\python-venv\Scripts\python.exe" _utilities/validate-tool-list.py
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\setup.ps1
 ```
 
-## Commit Convention
+## Quality gates
+
+Run before reporting a code change complete:
+
+```powershell
+.\scripts\test.ps1
+```
+
+The quality gate must compile the Python source, verify formatting and linting, and run the automated tests.
+
+Where a check cannot run, report the exact blocker and do not claim that it passed.
+
+## Change discipline
+
+- Keep repository-hardening changes separate from functional improvements.
+- Avoid broad refactors unless they are required for the approved task.
+- Add or update tests when behaviour changes.
+- Keep bundled asset-path handling repository-relative.
+- Do not silently change title-block geometry or company information.
+- Do not modify or redistribute proprietary PTG assets without owner approval.
+- Do not commit secrets, credentials, personal databases, virtual environments, Python caches, generated test presentations or temporary output.
+
+Generated files already present in repository history may be removed from the active branch after confirming they can be recreated. Functional source files and intentional assets must not be deleted without an explicit reason recorded in the pull request.
+
+## Versioning and records
+
+When application code changes:
+
+- update `tool-info.json`;
+- update `CHANGELOG.md`;
+- update user documentation where behaviour or setup changes; and
+- record significant design decisions in `docs/REVIEW.md` or a dedicated design document.
+
+## Commit convention
+
+Use focused commit messages such as:
+
 ```text
-git add tools/appendix-builder/
-git commit -m "[type](appendix-builder): [short description]"
+chore: add repository ignore rules
+fix: reject missing CSV configuration
+feat: add editable revision register
 ```
 
-Commit types: `feat` `fix` `refactor` `chore` `migrate` `release`
+## Sign-off boundaries
 
-## Files Codex Must Update After Every Session
-- `tools/appendix-builder/tool-info.json` - bump version if code changed
-- `tools/appendix-builder/CHANGELOG.md` - add entry for this session
-- `tools/appendix-builder/docs/REVIEW.md` - add self-critique entry
-- Run `_utilities/rebuild-tool-list.py` after any tool-info.json change
+Do not proceed beyond the following decisions without explicit owner direction:
 
-## Hard Constraints - Never Do These
-- Never delete files - move to `_retired/` instead
-- Never commit `.env.secrets` or `users.db`
-- Never commit `.orig` files - they are legacy manual versioning
-- Never install packages system-wide
-- Never modify files outside `E:\Home Folder`
-- Never proceed past a sign-off gate without explicit owner approval
+- final repository/application naming;
+- publication or redistribution of PTG-branded assets;
+- material title-block redesign;
+- changes to engineering content or approval fields; and
+- distribution to users outside the authorised internal group.
