@@ -1,17 +1,16 @@
 {
-  "id": "appendix-builder",
-  "name": "Appendix Builder",
-  "version": "2.1.0",
-  "status": "baseline-hardening",
-  "category": "document",
-  "stack": ["Python", "Tkinter", "Pillow", "python-pptx", "PyInstaller"],
-  "created": "2025-06-01",
+  "id": "fieldwork-plan-generator",
+  "name": "Fieldwork Plan Generator",
+  "version": "1.0.0",
+  "status": "browser-operational",
+  "category": "engineering-web-app",
+  "stack": ["Python", "FastAPI", "Jinja2", "JavaScript", "Pillow", "python-pptx", "Docker"],
   "updated": "2026-07-30",
-  "description": "Creates neutral A1 landscape PowerPoint appendices from engineering images.",
+  "description": "Generates A1 landscape PowerPoint fieldwork plans from engineering images in a browser.",
   "repository_name": "fieldwork_plan_generator",
-  "repository_identity_pending": true,
   "distribution": {
     "model": "owner-only",
-    "requires_token": false
+    "requires_token": false,
+    "deployment": "docker"
   }
 }
