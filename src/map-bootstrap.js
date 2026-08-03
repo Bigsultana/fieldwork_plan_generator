@@ -1,6 +1,7 @@
 const PRIMARY_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 const GEOCODE_PATH = "/api/geocode";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const APPLICATION_ORIGIN = globalThis.location?.origin || "https://fieldwork-plan-generator.invalid";
 
 export const FALLBACK_MAP_STYLE = Object.freeze({
   version: 8,
@@ -8,7 +9,7 @@ export const FALLBACK_MAP_STYLE = Object.freeze({
   sources: {
     openstreetmap: {
       type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [`${APPLICATION_ORIGIN}/api/tiles/{z}/{x}/{y}.png`],
       tileSize: 256,
       minzoom: 0,
       maxzoom: 19,
@@ -77,8 +78,9 @@ function installFetchFallbacks() {
   if (typeof window === "undefined" || typeof window.fetch !== "function") return;
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    // Use a simple raster style with fewer external dependencies than the original
-    // vector style. This avoids a blank map when style sprites or glyphs are blocked.
+    // Always substitute a small raster style whose tiles come through the same
+    // Cloudflare Worker. This avoids third-party browser blocking and ensures
+    // the PowerPoint capture canvas remains readable.
     if (isPrimaryStyleRequest(input)) return mapStyleResponse();
 
     if (isGeocodeRequest(input)) {
