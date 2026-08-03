@@ -3,14 +3,23 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [
     {
-      name: "fieldwork-map-enhancements",
+      name: "fieldwork-runtime-enhancements",
       transform(code, id) {
         if (!id.replaceAll("\\", "/").endsWith("/src/app.js")) return null;
-        const next = code.replace(
+        let next = code.replace(
           'from "./map-planner.js";',
           'from "./map-planner-enhanced.js";',
         );
-        if (next === code) throw new Error("Map planner import was not found during the build.");
+        next = next.replace(
+          'from "./presentation.js";',
+          'from "./presentation-enhanced.js";',
+        );
+        if (!next.includes('from "./map-planner-enhanced.js";')) {
+          throw new Error("Map planner import was not found during the build.");
+        }
+        if (!next.includes('from "./presentation-enhanced.js";')) {
+          throw new Error("Presentation import was not found during the build.");
+        }
         return { code: next, map: null };
       },
     },
