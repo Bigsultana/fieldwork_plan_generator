@@ -1,4 +1,4 @@
-import { createMapPlanner as createBaseMapPlanner } from "./map-planner.js";
+import { createMapPlanner as createBaseMapPlanner } from "./map-planner-v2.js";
 import { enhanceMapPlanner } from "./map-enhancements.js";
 
 export function createMapPlanner(options = {}) {
