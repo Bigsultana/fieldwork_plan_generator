@@ -1,10 +1,17 @@
 const GEOCODER = "https://nominatim.openstreetmap.org/search";
-const TILE_SERVERS = [
-  "https://basemaps.cartocdn.com/light_all",
-  "https://tile.openstreetmap.org",
-];
 const CONTACT = "https://fieldwork-plan-generator.matthewraison.workers.dev";
-const TILE_PATH = /^\/api\/tiles\/(\d{1,2})\/(\d+)\/(\d+)\.png$/;
+const TILE_PATH = /^\/api\/tiles\/(?:(street|satellite)\/)?(\d{1,2})\/(\d+)\/(\d+)\.(?:png|jpe?g)$/;
+
+const TILE_SOURCES = {
+  street: [
+    (tile) => `https://basemaps.cartocdn.com/light_all/${tile.zoom}/${tile.x}/${tile.y}.png`,
+    (tile) => `https://tile.openstreetmap.org/${tile.zoom}/${tile.x}/${tile.y}.png`,
+  ],
+  satellite: [
+    (tile) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.zoom}/${tile.y}/${tile.x}`,
+    (tile) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.zoom}/${tile.y}/${tile.x}`,
+  ],
+};
 
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
@@ -50,12 +57,10 @@ async function geocode(request, ctx) {
         headers: {
           Accept: "application/json",
           "Accept-Language": "en-AU,en",
-          "User-Agent": `FieldworkPlanGenerator/2.1 (+${CONTACT})`,
+          "User-Agent": `FieldworkPlanGenerator/2.2 (+${CONTACT})`,
         },
       });
-      if (!upstream.ok) {
-        return json({ error: `Geocoder returned ${upstream.status}.` }, 502);
-      }
+      if (!upstream.ok) return json({ error: `Geocoder returned ${upstream.status}.` }, 502);
 
       return new Response(await upstream.text(), {
         status: 200,
@@ -72,24 +77,24 @@ async function geocode(request, ctx) {
 export function parseTilePath(pathname) {
   const match = TILE_PATH.exec(pathname);
   if (!match) return null;
-  const zoom = Number(match[1]);
-  const x = Number(match[2]);
-  const y = Number(match[3]);
+  const source = match[1] || "street";
+  const zoom = Number(match[2]);
+  const x = Number(match[3]);
+  const y = Number(match[4]);
   const tileCount = 2 ** zoom;
-  if (zoom < 0 || zoom > 19 || x < 0 || y < 0 || x >= tileCount || y >= tileCount) return null;
-  return { zoom, x, y };
+  if (!TILE_SOURCES[source] || zoom < 0 || zoom > 19 || x < 0 || y < 0 || x >= tileCount || y >= tileCount) return null;
+  return { source, zoom, x, y };
 }
 
-async function fetchTileFrom(server, tile) {
-  const upstreamUrl = `${server}/${tile.zoom}/${tile.x}/${tile.y}.png`;
+async function fetchTile(upstreamUrl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     return await fetch(upstreamUrl, {
       signal: controller.signal,
       headers: {
-        Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
-        "User-Agent": `FieldworkPlanGenerator/2.1 (+${CONTACT})`,
+        Accept: "image/avif,image/webp,image/jpeg,image/png,image/*,*/*;q=0.8",
+        "User-Agent": `FieldworkPlanGenerator/2.2 (+${CONTACT})`,
       },
     });
   } finally {
@@ -103,27 +108,26 @@ async function mapTile(request, ctx, tile) {
   return cachedResponse(
     cacheKey,
     async () => {
-      for (const server of TILE_SERVERS) {
+      for (const buildUrl of TILE_SOURCES[tile.source]) {
+        const upstreamUrl = buildUrl(tile);
         try {
-          const upstream = await fetchTileFrom(server, tile);
+          const upstream = await fetchTile(upstreamUrl);
           if (!upstream.ok) continue;
           return new Response(upstream.body, {
             status: 200,
             headers: {
-              "content-type": upstream.headers.get("content-type") || "image/png",
+              "content-type": upstream.headers.get("content-type") || (tile.source === "satellite" ? "image/jpeg" : "image/png"),
               "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
               "access-control-allow-origin": "*",
-              "x-fieldwork-tile-source": new URL(server).hostname,
+              "x-fieldwork-tile-source": new URL(upstreamUrl).hostname,
+              "x-fieldwork-basemap": tile.source,
             },
           });
         } catch {
           // Try the next configured source.
         }
       }
-      return new Response("Map tile unavailable", {
-        status: 502,
-        headers: { "cache-control": "no-store" },
-      });
+      return new Response("Map tile unavailable", { status: 502, headers: { "cache-control": "no-store" } });
     },
     ctx,
   );
