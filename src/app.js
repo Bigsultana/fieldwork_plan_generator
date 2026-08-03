@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./marker-overrides.css";
 import {
   ACCEPTED_IMAGE_EXTENSIONS,
   DEFAULT_PROJECT,
