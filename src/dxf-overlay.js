@@ -94,8 +94,7 @@ function entityPoint(entity) {
 }
 
 function parseText(text) {
-  if (typeof parseDxf === "function") return parseDxf(text);
-  const Parser = DxfParser || parseDxf?.DxfParser;
+  const Parser = DxfParser || parseDxf?.DxfParser || parseDxf;
   if (!Parser) throw new Error("The DXF parser could not be loaded.");
   return new Parser().parseSync(text);
 }
