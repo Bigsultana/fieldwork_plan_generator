@@ -220,13 +220,19 @@ async function generate(event) {
   event.preventDefault();
   const project = formProject();
   const errors = validateSheets(sheets);
+  const warnings = [];
   const mapIncluded = mapPlanner.isIncluded();
   const mapSheetNumber = mapSheetNumberInput.value.trim();
+  const companyName = String(project.companyName || "").trim();
+
   if (!project.projectTitle.trim()) errors.unshift("Project title is required.");
   if (!mapIncluded && sheets.length === 0) errors.push("Create a map plan or select at least one fieldwork image.");
   if (mapIncluded && !mapSheetNumber) errors.push("Map sheet number is required.");
   if (mapIncluded && sheets.some((sheet) => String(sheet.sheetNumber).trim() === mapSheetNumber)) {
     errors.push(`Map sheet number '${mapSheetNumber}' duplicates an image sheet number.`);
+  }
+  if (!companyName || companyName.toUpperCase() === "COMPANY NAME") {
+    warnings.push("Company details were not completed, so neutral FIELDWORK PLAN branding was used.");
   }
   if (errors.length) {
     setStatus(errors.join(" "), "error");
@@ -256,10 +262,16 @@ async function generate(event) {
       mapPlan,
     );
     const filename = downloadPresentation(result.buffer, project);
-    const warning = result.missing.length
-      ? ` ${result.missing.length} image${result.missing.length === 1 ? " was" : "s were"} replaced with a warning placeholder.`
-      : "";
-    setStatus(`${filename} generated.${warning}`, result.missing.length ? "warning" : "success");
+    if (result.missing.length) {
+      warnings.push(
+        `${result.missing.length} image${result.missing.length === 1 ? " was" : "s were"} replaced with a warning placeholder.`,
+      );
+    }
+    const warningText = warnings.length ? ` ${warnings.join(" ")}` : "";
+    setStatus(
+      `${filename} generated.${warningText}`,
+      warnings.length ? "warning" : "success",
+    );
   } catch (error) {
     console.error(error);
     setStatus(`PowerPoint generation failed: ${error.message}`, "error");
