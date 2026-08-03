@@ -25,7 +25,9 @@ describe("world-file image georeferencing", () => {
       [101.5, -31.5],
       [99.5, -31.5],
     ]);
-    expect(worldFileCoordinates(transform, 2, 2, "EPSG:4326")[0]).toEqual([99.5, -29.5]);
+    const [longitude, latitude] = worldFileCoordinates(transform, 2, 2, "EPSG:4326")[0];
+    expect(longitude).toBeCloseTo(99.5, 10);
+    expect(latitude).toBeCloseTo(-29.5, 10);
   });
 
   it("rejects rotated world files until rotated-image rendering is supported", () => {
