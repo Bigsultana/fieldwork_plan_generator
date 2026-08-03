@@ -1,6 +1,6 @@
 {
   "name": "fieldwork-plan-generator",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Client-side A1 fieldwork-plan and map planner PowerPoint generator.",
@@ -11,6 +11,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "dxf-parser": "1.1.2",
     "geotiff": "3.0.5",
     "html2canvas": "1.4.1",
     "jszip": "3.10.1",
