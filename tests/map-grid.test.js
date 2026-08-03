@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineeringGridSpacing } from "../src/map-grid.js";
+import { engineeringGridSpacing } from "../src/grid-spacing.js";
 
 describe("engineering MGA grid spacing", () => {
   it("chooses a readable standard spacing", () => {
