@@ -4,7 +4,7 @@ const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
 export const FALLBACK_MAP_STYLE = Object.freeze({
   version: 8,
-  name: "OpenStreetMap fallback",
+  name: "OpenStreetMap standard",
   sources: {
     openstreetmap: {
       type: "raster",
@@ -45,7 +45,7 @@ export function isGeocodeRequest(input) {
   }
 }
 
-function fallbackStyleResponse() {
+function mapStyleResponse() {
   return new Response(JSON.stringify(FALLBACK_MAP_STYLE), {
     status: 200,
     headers: {
@@ -77,15 +77,9 @@ function installFetchFallbacks() {
   if (typeof window === "undefined" || typeof window.fetch !== "function") return;
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    if (isPrimaryStyleRequest(input)) {
-      try {
-        const response = await originalFetch(input, init);
-        if (response.ok) return response;
-      } catch {
-        // Fall through to a simple raster style when the primary style is unavailable.
-      }
-      return fallbackStyleResponse();
-    }
+    // Use a simple raster style with fewer external dependencies than the original
+    // vector style. This avoids a blank map when style sprites or glyphs are blocked.
+    if (isPrimaryStyleRequest(input)) return mapStyleResponse();
 
     if (isGeocodeRequest(input)) {
       try {
@@ -102,6 +96,7 @@ function installFetchFallbacks() {
 }
 
 function installAutomaticBestMatch() {
+  if (typeof document === "undefined" || typeof MutationObserver === "undefined") return;
   const attach = () => {
     const results = document.querySelector("#search-results");
     if (!results || results.dataset.autoCentreInstalled === "true") return;
