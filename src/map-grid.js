@@ -1,8 +1,8 @@
 import L from "leaflet";
 import proj4 from "proj4";
+import { engineeringGridSpacing } from "./grid-spacing.js";
 
 const WGS84 = "+proj=longlat +datum=WGS84 +no_defs +type=crs";
-const SPACINGS = Object.freeze([10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000]);
 
 function zoneFromLongitude(longitude) {
   return Math.min(60, Math.max(1, Math.floor((Number(longitude) + 180) / 6) + 1));
@@ -10,11 +10,6 @@ function zoneFromLongitude(longitude) {
 
 function definition(zone) {
   return `+proj=utm +zone=${Number(zone)} +south +ellps=GRS80 +units=m +no_defs +type=crs`;
-}
-
-export function engineeringGridSpacing(spanMetres, targetLines = 8) {
-  const desired = Math.max(1, Number(spanMetres) / Math.max(2, Number(targetLines)));
-  return SPACINGS.find((spacing) => spacing >= desired) || SPACINGS.at(-1);
 }
 
 function labelIcon(text, axis) {
@@ -100,3 +95,5 @@ export function createMgaGridLayer(map, options = {}) {
   };
   return group;
 }
+
+export { engineeringGridSpacing };
