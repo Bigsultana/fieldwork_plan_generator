@@ -1,46 +1,27 @@
-# AGENTS.md — Fieldwork Plan Generator
+# AGENTS.md
 
-## Product identity
+## Product
 
-This repository contains **Fieldwork Plan Generator**, a FastAPI browser application that generates A1 landscape PowerPoint fieldwork plans from uploaded engineering images.
+Fieldwork Plan Generator is a client-side browser application deployed as Cloudflare static assets.
 
-Do not reintroduce the previous desktop Appendix Builder identity or company-specific branding.
+## Architecture rules
 
-## Source of truth
+- Keep engineering drawings in browser memory; do not add server uploads without explicit approval.
+- Keep PowerPoint generation in `src/presentation.js`.
+- Keep parsing, validation and geometry helpers in `src/model.js`.
+- Preserve the A1 landscape dimensions and title-block geometry unless a design change is requested.
+- New dependencies must be browser-compatible and pinned to an exact version.
+- Do not commit `dist/`, `node_modules/`, credentials or Cloudflare account identifiers.
 
-Read before modifying the application:
+## Required checks
 
-1. `README.md`
-2. `tool-info.json`
-3. `CHANGELOG.md`
-4. `docs/BASELINE.md`
-
-## Architecture
-
-- `source/web_app.py` owns HTTP routes, validation, temporary uploads and file responses.
-- `source/templates/` and `source/static/` own the browser interface.
-- `source/utils/` owns PowerPoint generation and must remain usable without the HTTP layer.
-- Uploaded files must remain temporary and must be deleted after the response.
-- Never trust client-provided filesystem paths.
-
-## Quality gates
-
-Run:
-
-```powershell
-.\scripts\test.ps1
+```bash
+npm install
+npm test
+npm run build
+npx wrangler deploy --dry-run
 ```
 
-At minimum, compile all Python files and run all automated tests. Any behaviour change requires a corresponding test.
+## Git workflow
 
-## Security constraints
-
-- Validate extensions and file counts before generation.
-- Enforce upload-size limits.
-- Use generated temporary filenames rather than uploaded paths.
-- Do not persist user uploads or project data without an explicit product decision.
-- Do not commit credentials or deployment secrets.
-
-## Publishing
-
-Develop on a branch, open a pull request, ensure GitHub Actions passes, then squash merge to `main`.
+Use `agent/<description>` branches and pull requests. Do not push feature work directly to `main`.

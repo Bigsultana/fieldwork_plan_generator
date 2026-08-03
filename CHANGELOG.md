@@ -1,28 +1,16 @@
-# Changelog — Fieldwork Plan Generator
+# Changelog
 
-## [1.0.0] - 2026-07-30
+## 2.0.0 - 2026-08-03
 
-### Added
+- Replaced the FastAPI/Docker runtime with a fully client-side browser application.
+- Added Cloudflare static-assets deployment through `wrangler.jsonc`.
+- Moved PowerPoint generation from `python-pptx` to PptxGenJS.
+- Added in-browser TIFF decoding.
+- Retained multi-image upload, editable sheet registers, CSV import, logo support, A1 output, title blocks, aspect-ratio fitting and missing-image placeholders.
+- Added reusable JSON title-block profiles and browser-saved defaults.
+- Removed server uploads, temporary request directories, Python dependencies and container hosting requirements.
+- Replaced Python tests with Vitest model and real PPTX-generation checks.
 
-- FastAPI browser application.
-- Responsive project and title-block form.
-- Multi-image upload and editable sheet register.
-- Optional CSV metadata import.
-- Optional company logo and PowerPoint template uploads.
-- Direct browser download of generated PowerPoint files.
-- Temporary-file cleanup after each request.
-- Health endpoint and automatic API documentation.
-- Dockerfile and Render deployment blueprint.
-- GitHub Actions tests and Docker build checks.
-- Browser/API and PowerPoint-builder automated tests.
+## 1.0.0 - 2026-07-30
 
-### Changed
-
-- Renamed the product to Fieldwork Plan Generator.
-- Replaced the Tkinter desktop interface with a browser interface.
-- Renamed the primary builder API to `build_fieldwork_plan` while retaining a compatibility alias.
-
-### Removed
-
-- Desktop-only application entry flow.
-- PyInstaller packaging configuration.
+- Introduced the browser-based FastAPI baseline and Docker deployment.
