@@ -3,22 +3,21 @@ import { toWgs84 } from "./projection-utils.js";
 
 const HEADER_ALIASES = Object.freeze({
   id: ["id", "pointid", "pointname", "name", "label", "location", "locationid", "testlocation", "holeid"],
-  type: ["type", "pointtype", "locationtype", "testtype", "method"],
-  longitude: ["longitude", "lon", "long", "lng", "x", "wgs84longitude"],
-  latitude: ["latitude", "lat", "y", "wgs84latitude"],
-  easting: ["easting", "east", "x", "mgaeasting", "gridx"],
-  northing: ["northing", "north", "y", "mganorthing", "gridy"],
-  notes: ["notes", "note", "description", "comments", "comment", "remarks", "remark"],
+  longitude: ["longitude", "lon", "long", "lng", "wgs84longitude"],
+  latitude: ["latitude", "lat", "wgs84latitude"],
+  easting: ["easting", "east", "mgaeasting", "gridx"],
+  northing: ["northing", "north", "mganorthing", "gridy"],
+  zone: ["zone", "mgazone", "utmzone", "gridzone", "mga2020zone"],
 });
 
-const TYPE_ALIASES = Object.freeze({
-  BH: ["bh", "borehole", "bore", "drillhole", "drillholelocation"],
-  TP: ["tp", "testpit", "pit", "excavation"],
-  CPT: ["cpt", "conepenetrationtest", "cone"],
-  DCP: ["dcp", "dynamicconepenetrometer", "dynamiccone"],
-  MW: ["mw", "monitoringwell", "monitoringbore", "well"],
-  SP: ["sp", "surveypoint", "survey", "controlpoint", "setoutpoint"],
-});
+const TYPE_PREFIXES = Object.freeze([
+  ["CPT", ["CPT", "CONEPENETRATIONTEST", "CONE"]],
+  ["DCP", ["DCP", "DYNAMICCONEPENETROMETER", "DYNAMICCONE"]],
+  ["BH", ["BH", "BOREHOLE", "BORE", "DRILLHOLE"]],
+  ["TP", ["TP", "TESTPIT", "PIT"]],
+  ["MW", ["MW", "MONITORINGWELL", "MONITORINGBORE", "WELL"]],
+  ["SP", ["SP", "SURVEYPOINT", "SURVEY", "CONTROLPOINT", "SETOUTPOINT"]],
+]);
 
 function normalise(value) {
   return String(value ?? "")
@@ -87,21 +86,20 @@ function findHeader(headers, aliases) {
   return index >= 0 ? headers[index] : "";
 }
 
-export function detectCoordinateMapping(headers, sourceCrs = "EPSG:4326") {
-  const geographic = String(sourceCrs) === "EPSG:4326";
-  return {
-    id: findHeader(headers, HEADER_ALIASES.id),
-    type: findHeader(headers, HEADER_ALIASES.type),
-    x: findHeader(headers, geographic ? HEADER_ALIASES.longitude : HEADER_ALIASES.easting),
-    y: findHeader(headers, geographic ? HEADER_ALIASES.latitude : HEADER_ALIASES.northing),
-    notes: findHeader(headers, HEADER_ALIASES.notes),
-  };
+export function detectCoordinateSchema(headers) {
+  const id = findHeader(headers, HEADER_ALIASES.id);
+  const longitude = findHeader(headers, HEADER_ALIASES.longitude);
+  const latitude = findHeader(headers, HEADER_ALIASES.latitude);
+  const easting = findHeader(headers, HEADER_ALIASES.easting);
+  const northing = findHeader(headers, HEADER_ALIASES.northing);
+  const zone = findHeader(headers, HEADER_ALIASES.zone);
+  const format = longitude && latitude ? "geographic" : easting && northing ? "projected" : null;
+  return { id, longitude, latitude, easting, northing, zone, format };
 }
 
-export function normalisePointType(value, fallback = "BH") {
-  const candidate = normalise(value);
-  if (FIELDWORK_TYPES[String(value || "").toUpperCase()]) return String(value).toUpperCase();
-  const match = Object.entries(TYPE_ALIASES).find(([, aliases]) => aliases.includes(candidate));
+export function inferPointTypeFromId(value, fallback = "BH") {
+  const candidate = normalise(value).toUpperCase();
+  const match = TYPE_PREFIXES.find(([, prefixes]) => prefixes.some((prefix) => candidate.startsWith(prefix)));
   return match?.[0] || (FIELDWORK_TYPES[fallback] ? fallback : "BH");
 }
 
@@ -111,45 +109,72 @@ function valueFor(row, headers, column) {
   return index >= 0 ? String(row[index] ?? "").trim() : "";
 }
 
+function parseNumber(value) {
+  return Number(String(value ?? "").replaceAll(",", "").replaceAll(" ", ""));
+}
+
+function zoneFromValue(value) {
+  const match = /(?:^|\D)(5[5-6])(?:\D|$)/.exec(String(value ?? ""));
+  return match ? Number(match[1]) : null;
+}
+
+function projectedCrs(selectedCrs, zoneValue) {
+  const selected = String(selectedCrs || "auto");
+  if (selected !== "auto") return selected;
+  const zone = zoneFromValue(zoneValue);
+  if (zone === 55 || zone === 56) return `EPSG:785${zone - 50}`;
+  throw new Error("select the projected coordinate system or include a Zone column containing 55 or 56");
+}
+
 export function prepareCoordinateImport({
   headers,
   rows,
-  mapping,
-  sourceCrs = "EPSG:4326",
-  defaultType = "BH",
+  sourceCrs = "auto",
   maximumPoints = 500,
 }) {
-  if (!mapping?.x || !mapping?.y) {
-    throw new Error("Choose the two coordinate columns before importing.");
+  const schema = detectCoordinateSchema(headers);
+  if (!schema.id) throw new Error("The coordinate file needs a Location ID column.");
+  if (!schema.format) {
+    throw new Error("The coordinate file needs either Latitude and Longitude columns or Easting and Northing columns.");
   }
+
   const points = [];
   const errors = [];
   const warnings = [];
 
   rows.forEach((row, rowIndex) => {
     if (points.length >= maximumPoints) return;
-    const sourceX = Number(String(valueFor(row, headers, mapping.x)).replaceAll(",", ""));
-    const sourceY = Number(String(valueFor(row, headers, mapping.y)).replaceAll(",", ""));
+    const locationId = valueFor(row, headers, schema.id);
+    if (!locationId) {
+      errors.push(`Row ${rowIndex + 2}: Location ID is blank.`);
+      return;
+    }
+
+    const sourceX = parseNumber(valueFor(row, headers, schema.format === "geographic" ? schema.longitude : schema.easting));
+    const sourceY = parseNumber(valueFor(row, headers, schema.format === "geographic" ? schema.latitude : schema.northing));
     if (!Number.isFinite(sourceX) || !Number.isFinite(sourceY)) {
       errors.push(`Row ${rowIndex + 2}: coordinate values are not numeric.`);
       return;
     }
+
     try {
-      const [longitude, latitude] = toWgs84(sourceCrs, [sourceX, sourceY]);
+      const rowCrs = schema.format === "geographic"
+        ? "EPSG:4326"
+        : projectedCrs(sourceCrs, valueFor(row, headers, schema.zone));
+      const [longitude, latitude] = toWgs84(rowCrs, [sourceX, sourceY]);
       if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
         throw new Error("transformed outside valid longitude/latitude limits");
       }
-      const rawType = valueFor(row, headers, mapping.type);
-      const type = normalisePointType(rawType, defaultType);
-      if (rawType && normalisePointType(rawType, "") !== type) {
-        warnings.push(`Row ${rowIndex + 2}: unknown type '${rawType}' was imported as ${type}.`);
+      const type = inferPointTypeFromId(locationId, "BH");
+      if (!TYPE_PREFIXES.some(([, prefixes]) => prefixes.some((prefix) => normalise(locationId).toUpperCase().startsWith(prefix)))) {
+        warnings.push(`Row ${rowIndex + 2}: '${locationId}' has no recognised BH/TP/CPT/DCP/MW/SP prefix and was imported as BH.`);
       }
       points.push({
         type,
         longitude,
         latitude,
-        customLabel: valueFor(row, headers, mapping.id),
-        notes: valueFor(row, headers, mapping.notes),
+        customLabel: locationId,
+        notes: "",
         sourceRow: rowIndex + 2,
       });
     } catch (error) {
@@ -158,13 +183,13 @@ export function prepareCoordinateImport({
   });
 
   if (rows.length > maximumPoints) warnings.push(`Only the first ${maximumPoints} valid locations were prepared.`);
-  return { points, errors, warnings };
+  return { points, errors, warnings, schema };
 }
 
 export function coordinateTemplateCsv() {
   return [
-    "ID,Type,Latitude,Longitude,Notes",
-    "BH1,Borehole,-27.9000000,153.3000000,Optional note",
-    "TP1,Test pit,-27.9005000,153.3005000,",
+    "Location ID,Latitude,Longitude",
+    "BH1,-27.9000000,153.3000000",
+    "TP1,-27.9005000,153.3005000",
   ].join("\n");
 }
