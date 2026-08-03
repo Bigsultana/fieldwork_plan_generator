@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Create A1 fieldwork-plan PowerPoint files entirely in your browser."
+    />
+    <title>Fieldwork Plan Generator</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Engineering fieldwork utility</p>
+        <h1>Fieldwork Plan Generator</h1>
+        <p class="hero-copy">
+          Combine plans, maps, sections and marked-up images into a formatted A1 PowerPoint.
+          Files stay in this browser and are not uploaded to a server.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button id="import-profile" class="button secondary" type="button">Import profile</button>
+        <button id="export-profile" class="button secondary" type="button">Export profile</button>
+        <input id="profile-file" type="file" accept="application/json,.json" hidden />
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <form id="generator-form" novalidate>
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="step">1</p>
+              <h2>Project and title block</h2>
+            </div>
+            <button id="restore-profile" class="text-button" type="button">Restore saved defaults</button>
+          </div>
+
+          <div class="form-grid three">
+            <label>
+              Project title <span aria-hidden="true">*</span>
+              <input name="projectTitle" required autocomplete="off" />
+            </label>
+            <label>
+              Project number
+              <input name="projectNumber" autocomplete="off" />
+            </label>
+            <label>
+              Client
+              <input name="clientName" autocomplete="off" />
+            </label>
+            <label class="span-two">
+              Project address
+              <input name="projectAddress" autocomplete="off" />
+            </label>
+            <label>
+              Drawing status
+              <select name="drawingStatus">
+                <option>FOR INFORMATION</option>
+                <option>FOR REVIEW</option>
+                <option>PRELIMINARY</option>
+                <option>DRAFT - NOT FOR CONSTRUCTION</option>
+                <option>FOR CONSTRUCTION</option>
+                <option>AS CONSTRUCTED</option>
+              </select>
+            </label>
+            <label>
+              Drawn by
+              <input name="drawnBy" maxlength="12" autocomplete="off" />
+            </label>
+            <label>
+              Designed by
+              <input name="designedBy" maxlength="12" autocomplete="off" />
+            </label>
+            <label>
+              Approved by
+              <input name="approvedBy" maxlength="12" autocomplete="off" />
+            </label>
+            <label>
+              Date
+              <input name="date" autocomplete="off" />
+            </label>
+            <label>
+              Figure prefix
+              <input name="sheetPrefix" maxlength="8" autocomplete="off" />
+            </label>
+            <label>
+              Accent colour
+              <input name="accentColor" type="color" value="#245b8a" />
+            </label>
+          </div>
+
+          <details class="company-details">
+            <summary>Company details and logo</summary>
+            <div class="form-grid three detail-grid">
+              <label>
+                Company name
+                <input name="companyName" autocomplete="organization" />
+              </label>
+              <label class="span-two">
+                Company address
+                <input name="companyAddress" autocomplete="street-address" />
+              </label>
+              <label>
+                Phone
+                <input name="companyPhone" autocomplete="tel" />
+              </label>
+              <label>
+                Email
+                <input name="companyEmail" type="email" autocomplete="email" />
+              </label>
+              <label>
+                Website
+                <input name="companyWebsite" autocomplete="url" />
+              </label>
+              <label class="file-label span-three">
+                Company logo
+                <input id="logo-files" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,.tif,.tiff" />
+                <small>Optional. PNG with a transparent background works best.</small>
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="step">2</p>
+              <h2>Select fieldwork images</h2>
+            </div>
+            <p id="image-count" class="section-meta">No images selected</p>
+          </div>
+
+          <label id="drop-zone" class="drop-zone" for="image-files">
+            <strong>Choose or drop plans and images here</strong>
+            <span>PNG, JPEG, WebP, BMP and TIFF. Up to 60 files.</span>
+            <input
+              id="image-files"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/bmp,.tif,.tiff"
+              multiple
+              hidden
+            />
+          </label>
+
+          <div class="toolbar">
+            <label class="compact-file">
+              Apply CSV metadata
+              <input id="csv-file" type="file" accept="text/csv,.csv" />
+            </label>
+            <button id="sort-files" class="button secondary" type="button">Sort by filename</button>
+            <button id="renumber-files" class="button secondary" type="button">Renumber sheets</button>
+            <button id="clear-files" class="button danger" type="button">Clear images</button>
+          </div>
+
+          <div id="empty-register" class="empty-state">
+            Select one or more images to create the editable sheet register.
+          </div>
+          <div id="register-wrapper" class="register-wrapper" hidden>
+            <table class="sheet-register">
+              <thead>
+                <tr>
+                  <th scope="col">Order</th>
+                  <th scope="col">Image</th>
+                  <th scope="col">Sheet</th>
+                  <th scope="col">Primary title</th>
+                  <th scope="col">Secondary title</th>
+                  <th scope="col">Third line</th>
+                  <th scope="col">Scale</th>
+                  <th scope="col">Rev.</th>
+                  <th scope="col"><span class="sr-only">Remove</span></th>
+                </tr>
+              </thead>
+              <tbody id="sheet-register"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel output-panel">
+          <div class="section-heading">
+            <div>
+              <p class="step">3</p>
+              <h2>Generate PowerPoint</h2>
+            </div>
+            <p class="section-meta">A1 landscape · one image per slide</p>
+          </div>
+          <div class="output-row">
+            <div>
+              <p id="status-message" role="status">Ready when project details and images are complete.</p>
+              <progress id="progress" max="100" value="0" hidden></progress>
+            </div>
+            <button id="generate" class="button primary" type="submit">Generate and download .pptx</button>
+          </div>
+        </section>
+      </form>
+    </main>
+
+    <footer>
+      <p>Fieldwork Plan Generator · Client-side PowerPoint generation</p>
+    </footer>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

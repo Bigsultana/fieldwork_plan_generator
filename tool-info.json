@@ -1,16 +1,12 @@
 {
   "id": "fieldwork-plan-generator",
   "name": "Fieldwork Plan Generator",
-  "version": "1.0.0",
-  "status": "browser-operational",
-  "category": "engineering-web-app",
-  "stack": ["Python", "FastAPI", "Jinja2", "JavaScript", "Pillow", "python-pptx", "Docker"],
-  "updated": "2026-07-30",
-  "description": "Generates A1 landscape PowerPoint fieldwork plans from engineering images in a browser.",
-  "repository_name": "fieldwork_plan_generator",
-  "distribution": {
-    "model": "owner-only",
-    "requires_token": false,
-    "deployment": "docker"
-  }
+  "version": "2.0.0",
+  "status": "cloudflare-static-migration",
+  "owner": "Matthew Raison",
+  "stack": ["Vite", "JavaScript", "PptxGenJS", "Cloudflare Workers Static Assets"],
+  "deployment": "Cloudflare Git integration",
+  "distribution": "owner-only source; browser deployment",
+  "privacy_model": "client-side file processing",
+  "repository_identity_pending": false
 }

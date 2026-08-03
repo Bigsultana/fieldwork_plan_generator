@@ -1,126 +1,86 @@
 # Fieldwork Plan Generator
 
-Fieldwork Plan Generator is a browser-based engineering utility for turning uploaded plans, maps, cross-sections and marked-up images into a formatted A1 landscape PowerPoint fieldwork plan.
+Fieldwork Plan Generator is a privacy-first browser application for turning plans, maps, sections and marked-up images into a formatted A1 landscape PowerPoint fieldwork plan.
 
-**Version:** 1.0.0  
-**Status:** Browser-operational baseline  
+**Version:** 2.0.0  
+**Runtime:** Cloudflare static assets / modern browser  
 **Owner:** Matthew Raison
 
-## Current capability
+## What it does
 
-The web application lets a user:
+- accepts multiple PNG, JPEG, WebP, BMP and TIFF files;
+- creates an editable sheet register from the selected images;
+- imports optional sheet metadata from CSV;
+- collects project, client, approval and company information;
+- accepts an optional company logo;
+- preserves image aspect ratio inside an A1 drawing frame;
+- creates a neutral, editable title block on every slide;
+- adds a visible placeholder when an image cannot be decoded;
+- generates and downloads the `.pptx` entirely in the browser; and
+- imports and exports reusable title-block profiles as JSON.
 
-- enter project, client, approval and title-block information;
-- upload multiple engineering images;
-- automatically create and edit a sheet register;
-- optionally import sheet metadata from CSV;
-- optionally upload a company logo and PowerPoint template;
-- generate a neutral A1 title block for every uploaded image; and
-- download the completed `.pptx` directly in the browser.
+The selected drawings are never uploaded to an application server. Image conversion and PowerPoint generation run locally in the user's browser.
 
-Uploaded files are stored only in a temporary request directory and are deleted after the download response is sent.
+## Cloudflare deployment
 
-## Run locally in a browser
+The repository is configured for Cloudflare Workers static assets. Cloudflare's GitHub integration can build and deploy the connected branch using:
 
-### Windows
+```text
+Deploy command: npx wrangler deploy
+```
+
+`wrangler.jsonc` runs `npm run build` before deployment and publishes the generated `dist/` directory.
+
+## Local setup
+
+Requirements:
+
+- Node.js 22.12 or newer
+- npm
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\setup.ps1
 .\scripts\run.ps1
 ```
 
-Open:
+Open the URL printed by Vite, normally `http://localhost:5173`.
 
-```text
-http://127.0.0.1:8000
-```
-
-### macOS or Linux
-
-```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-python source/main.py
-```
-
-## Run with Docker
-
-```bash
-docker build -t fieldwork-plan-generator .
-docker run --rm -p 8000:8000 fieldwork-plan-generator
-```
-
-Open `http://127.0.0.1:8000`.
-
-## Deploy to a hosted browser URL
-
-The repository includes `render.yaml` and a production Dockerfile.
-
-On Render:
-
-1. Create a new Blueprint.
-2. Connect this GitHub repository.
-3. Render detects `render.yaml` and builds the Docker service.
-4. Confirm the `/health` endpoint is healthy.
-
-The application is also compatible with container hosts that accept a Dockerfile and provide a `PORT` environment variable.
-
-## CSV format
-
-CSV import is optional and is applied to selected images by row order. Supported headings are:
-
-```csv
-sheet_number,drawing_title_1,drawing_title_2,scale,revision
-001,Test Location Plan,Proposed investigation locations,NTS,A
-002,Site Access Plan,Access and exclusion zones,NTS,A
-```
-
-## API
-
-- `GET /` — browser interface
-- `GET /health` — deployment health check
-- `POST /api/generate` — multipart PowerPoint generation endpoint
-- `GET /docs` — automatically generated API documentation
-
-## Development checks
+## Tests and production build
 
 ```powershell
 .\scripts\test.ps1
 ```
 
-Or:
+Or directly:
 
 ```bash
-PYTHONPATH=source python -m compileall -q source tests
-PYTHONPATH=source python -m unittest discover -s tests -p 'test_*.py'
+npm install
+npm test
+npm run build
+npx wrangler deploy --dry-run
 ```
 
-GitHub Actions runs the automated tests and builds the Docker image for each pull request.
+## CSV format
 
-## Repository structure
+CSV rows are applied to selected images by register order.
 
-```text
-source/web_app.py             FastAPI application and upload pipeline
-source/main.py                Local development server entry point
-source/templates/index.html   Browser interface
-source/static/                Browser JavaScript and styling
-source/utils/                 PowerPoint generation and title-block engine
-tests/                        Builder and browser/API tests
-.github/workflows/quality.yml Continuous integration
-Dockerfile                    Production container
-render.yaml                   Render deployment blueprint
+```csv
+sheet_number,drawing_title_1,drawing_title_2,drawing_title_3,scale,revision
+001,Test Location Plan,Proposed investigation locations,,NTS,A
+002,Site Access Plan,Access and exclusion zones,,1:500,A
 ```
 
-## Current limits
+## Template profiles
 
-- Maximum 60 images per generation request.
-- Maximum 35 MB per uploaded file.
-- Generated output is PowerPoint only.
-- Browser settings are stored in local browser storage; there is no user account or server-side project database yet.
-- Hosted free-tier services may sleep between uses and may impose their own request-size or execution-time limits.
+Version 2 replaces arbitrary `.pptx` template ingestion with explicit title-block profiles. A profile stores company information, project defaults, figure prefix and accent colour in a small JSON file. This keeps the presentation layout predictable and allows the app to remain fully client-side.
+
+## Privacy and limits
+
+- Up to 60 images can be held in one browser session.
+- Large source images can use significant browser memory while the PowerPoint is generated.
+- Project defaults saved in the browser use local storage on the current device.
+- No application database or upload API is used.
 
 ## Licence
 
-Proprietary and confidential. See [`LICENSE`](LICENSE).
+Proprietary and confidential. See [`LICENSE`](LICENSE). Third-party packages remain subject to their own licences.
