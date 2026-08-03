@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.0 - 2026-08-03
+
+- Added an interactive MapLibre site-planning interface.
+- Added a fixed A1-content outline so the selected map extent matches the PowerPoint map area.
+- Added address/place search and direct latitude/longitude navigation through a cached Cloudflare Worker endpoint.
+- Added independently numbered Borehole, Test Pit, CPT, DCP, Monitoring Well and Survey Point tools.
+- Added a live WGS84 and GDA2020 / MGA coordinate register with notes.
+- Added automatic map-scale estimation at A1.
+- Added GeoTIFF overlay import with automatic or manual CRS selection and opacity control.
+- Added KML, KMZ and coordinate CSV export.
+- Added map capture, map title-block output and paginated coordinate-schedule slides to the PowerPoint.
+- Added tests for point numbering, coordinate conversion, map-scale rounding, KML/KMZ and map-based PPTX generation.
+
 ## 2.0.0 - 2026-08-03
 
 - Replaced the FastAPI/Docker runtime with a fully client-side browser application.
