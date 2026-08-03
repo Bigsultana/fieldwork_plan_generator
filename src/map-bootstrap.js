@@ -1,31 +1,43 @@
 const PRIMARY_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 const GEOCODE_PATH = "/api/geocode";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const APPLICATION_ORIGIN = globalThis.location?.origin || "https://fieldwork-plan-generator.invalid";
 
-export const FALLBACK_MAP_STYLE = Object.freeze({
-  version: 8,
-  name: "OpenStreetMap standard",
-  sources: {
-    openstreetmap: {
-      type: "raster",
-      tiles: [`${APPLICATION_ORIGIN}/api/tiles/{z}/{x}/{y}.png`],
-      tileSize: 256,
-      minzoom: 0,
-      maxzoom: 19,
-      attribution: "© OpenStreetMap contributors",
+function normaliseOrigin(origin) {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return "https://example.invalid";
+  }
+}
+
+export function createMapStyle(origin = globalThis.location?.origin) {
+  const appOrigin = normaliseOrigin(origin || "https://example.invalid");
+  return {
+    version: 8,
+    name: "Fieldwork Plan Generator basemap",
+    sources: {
+      basemap: {
+        type: "raster",
+        tiles: [`${appOrigin}/api/tiles/{z}/{x}/{y}.png`],
+        tileSize: 256,
+        minzoom: 0,
+        maxzoom: 19,
+        attribution: "© OpenStreetMap contributors © CARTO",
+      },
     },
-  },
-  layers: [
-    {
-      id: "openstreetmap",
-      type: "raster",
-      source: "openstreetmap",
-      minzoom: 0,
-      maxzoom: 22,
-    },
-  ],
-});
+    layers: [
+      {
+        id: "basemap",
+        type: "raster",
+        source: "basemap",
+        minzoom: 0,
+        maxzoom: 22,
+      },
+    ],
+  };
+}
+
+export const FALLBACK_MAP_STYLE = Object.freeze(createMapStyle("https://example.invalid"));
 
 function requestUrl(input) {
   if (typeof input === "string") return input;
@@ -47,11 +59,11 @@ export function isGeocodeRequest(input) {
 }
 
 function mapStyleResponse() {
-  return new Response(JSON.stringify(FALLBACK_MAP_STYLE), {
+  return new Response(JSON.stringify(createMapStyle(window.location.origin)), {
     status: 200,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "public, max-age=86400",
+      "cache-control": "no-store",
     },
   });
 }
@@ -78,9 +90,8 @@ function installFetchFallbacks() {
   if (typeof window === "undefined" || typeof window.fetch !== "function") return;
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    // Always substitute a small raster style whose tiles come through the same
-    // Cloudflare Worker. This avoids third-party browser blocking and ensures
-    // the PowerPoint capture canvas remains readable.
+    // MapLibre still requests the original style URL, but the returned style now
+    // contains an absolute tile route on the current Cloudflare deployment.
     if (isPrimaryStyleRequest(input)) return mapStyleResponse();
 
     if (isGeocodeRequest(input)) {
