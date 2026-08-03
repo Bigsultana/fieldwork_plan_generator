@@ -1,0 +1,68 @@
+.coordinate-import-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.coordinate-import-grid .span-two { grid-column: 1 / -1; }
+.coordinate-import-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.6rem; }
+.coordinate-import-actions .button { flex: 1 1 110px; }
+.coordinate-import-preview {
+  margin-top: 0.65rem;
+  overflow-x: auto;
+  border: 1px solid #d8e0ea;
+  border-radius: 6px;
+  background: #fff;
+}
+.coordinate-import-preview table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+.coordinate-import-preview th,
+.coordinate-import-preview td { padding: 0.35rem 0.4rem; border-bottom: 1px solid #e6ebf1; text-align: left; white-space: nowrap; }
+.coordinate-import-preview th { color: #334158; background: #f3f6f9; font-weight: 750; }
+.coordinate-import-preview tr:last-child td { border-bottom: 0; }
+.coordinate-import-summary { margin: 0.55rem 0 0; font-size: 0.74rem; line-height: 1.4; }
+.coordinate-import-summary[data-tone="success"] { color: #236b46; }
+.coordinate-import-summary[data-tone="warning"] { color: #8c570d; }
+.coordinate-import-summary[data-tone="error"] { color: #9f2d32; }
+
+.map-tools-organised { display: grid; gap: 0.65rem; align-content: start; }
+.map-tool-section {
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: clip;
+}
+.map-tool-section > summary {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.75rem;
+  color: #172033;
+  background: #eef3f8;
+  cursor: pointer;
+  list-style-position: inside;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+.map-tool-section > summary small { color: #68758a; font-size: 0.68rem; font-weight: 550; line-height: 1.35; }
+.map-tool-section[open] > summary { border-bottom: 1px solid #d7e0ea; }
+.map-tool-section-body { display: grid; gap: 0.65rem; padding: 0.65rem; }
+.map-tool-section-body > .tool-group { margin: 0; background: #fff; }
+.map-tool-section-body > .tool-group h3 { margin-top: 0; }
+
+.import-format-guide {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.6rem;
+  padding: 0.55rem;
+  color: #46556b;
+  background: #f4f7fa;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.import-format-guide strong { color: #172033; }
+
+@media (max-width: 720px) {
+  .coordinate-import-grid { grid-template-columns: 1fr; }
+  .coordinate-import-grid .span-two { grid-column: auto; }
+}
