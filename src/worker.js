@@ -1,5 +1,8 @@
 const GEOCODER = "https://nominatim.openstreetmap.org/search";
-const TILE_SERVER = "https://tile.openstreetmap.org";
+const TILE_SERVERS = [
+  "https://basemaps.cartocdn.com/light_all",
+  "https://tile.openstreetmap.org",
+];
 const CONTACT = "https://fieldwork-plan-generator.matthewraison.workers.dev";
 const TILE_PATH = /^\/api\/tiles\/(\d{1,2})\/(\d+)\/(\d+)\.png$/;
 
@@ -77,29 +80,49 @@ export function parseTilePath(pathname) {
   return { zoom, x, y };
 }
 
+async function fetchTileFrom(server, tile) {
+  const upstreamUrl = `${server}/${tile.zoom}/${tile.x}/${tile.y}.png`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    return await fetch(upstreamUrl, {
+      signal: controller.signal,
+      headers: {
+        Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
+        "User-Agent": `FieldworkPlanGenerator/2.1 (+${CONTACT})`,
+      },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function mapTile(request, ctx, tile) {
   const requestUrl = new URL(request.url);
   const cacheKey = new Request(requestUrl.toString(), { method: "GET" });
   return cachedResponse(
     cacheKey,
     async () => {
-      const upstreamUrl = `${TILE_SERVER}/${tile.zoom}/${tile.x}/${tile.y}.png`;
-      const upstream = await fetch(upstreamUrl, {
-        headers: {
-          Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
-          "User-Agent": `FieldworkPlanGenerator/2.1 (+${CONTACT})`,
-        },
-      });
-      if (!upstream.ok) {
-        return new Response("Map tile unavailable", { status: upstream.status === 404 ? 404 : 502 });
+      for (const server of TILE_SERVERS) {
+        try {
+          const upstream = await fetchTileFrom(server, tile);
+          if (!upstream.ok) continue;
+          return new Response(upstream.body, {
+            status: 200,
+            headers: {
+              "content-type": upstream.headers.get("content-type") || "image/png",
+              "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
+              "access-control-allow-origin": "*",
+              "x-fieldwork-tile-source": new URL(server).hostname,
+            },
+          });
+        } catch {
+          // Try the next configured source.
+        }
       }
-      return new Response(upstream.body, {
-        status: 200,
-        headers: {
-          "content-type": upstream.headers.get("content-type") || "image/png",
-          "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-          "access-control-allow-origin": "*",
-        },
+      return new Response("Map tile unavailable", {
+        status: 502,
+        headers: { "cache-control": "no-store" },
       });
     },
     ctx,
