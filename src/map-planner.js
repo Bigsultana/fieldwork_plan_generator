@@ -1,25 +1,20 @@
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import html2canvas from "html2canvas";
 import {
   FIELDWORK_TYPES,
   MAP_CONTENT_RATIO,
   coordinateRecord,
   haversineDistanceMetres,
-  pointsGeoJson,
   renumberPoints,
   scaleFromFrameWidth,
 } from "./map-model.js";
 import { readGeoTiffOverlay } from "./geotiff-overlay.js";
 import { downloadKml, downloadKmz } from "./kml.js";
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
-const OVERLAY_SOURCE = "georeferenced-plan";
-const OVERLAY_LAYER = "georeferenced-plan-layer";
-const POINT_SOURCE = "fieldwork-points";
-const POINT_LAYER = "fieldwork-point-icons";
-const LABEL_LAYER = "fieldwork-point-labels";
-const DEFAULT_CENTER = [153.312, -27.91];
+const DEFAULT_CENTER = [-27.91, 153.312];
 const SEARCH_ENDPOINT = "/api/geocode";
+const TILE_URL = `${window.location.origin}/api/tiles/{z}/{x}/{y}.png`;
 
 function element(id) {
   const found = document.querySelector(`#${id}`);
@@ -92,15 +87,6 @@ function drawMarkerCanvas(definition, size = 64) {
   return canvas;
 }
 
-function boundsFromCoordinates(coordinates) {
-  const longitudes = coordinates.map((coordinate) => coordinate[0]);
-  const latitudes = coordinates.map((coordinate) => coordinate[1]);
-  return [
-    [Math.min(...longitudes), Math.min(...latitudes)],
-    [Math.max(...longitudes), Math.max(...latitudes)],
-  ];
-}
-
 function saveTextFile(text, filename, type = "text/csv;charset=utf-8") {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
@@ -116,6 +102,34 @@ function saveTextFile(text, filename, type = "text/csv;charset=utf-8") {
 function csvValue(value) {
   const text = String(value ?? "");
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function pointIcon(point) {
+  const definition = FIELDWORK_TYPES[point.type] || {
+    code: point.type,
+    symbol: "●",
+    color: "333333",
+  };
+  const html = `
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:72px;transform:translate(-20px,-12px);pointer-events:none">
+      <span style="display:grid;place-items:center;width:30px;height:30px;color:#${definition.color};background:#fff;border:3px solid #${definition.color};border-radius:${definition.code === "TP" ? "3px" : "50%"};font:800 18px/1 Arial,sans-serif;box-shadow:0 1px 5px rgba(0,0,0,.35)">${definition.symbol}</span>
+      <span style="margin-top:2px;padding:1px 4px;color:#111827;background:rgba(255,255,255,.92);border-radius:3px;font:800 13px/1.3 Arial,sans-serif;white-space:nowrap;text-shadow:0 0 2px #fff">${point.label}</span>
+    </div>`;
+  return L.divIcon({
+    className: "fieldwork-leaflet-marker",
+    html,
+    iconSize: [32, 48],
+    iconAnchor: [16, 16],
+  });
+}
+
+function overlayBounds(coordinates) {
+  const latitudes = coordinates.map((coordinate) => Number(coordinate[1]));
+  const longitudes = coordinates.map((coordinate) => Number(coordinate[0]));
+  return L.latLngBounds(
+    [Math.min(...latitudes), Math.min(...longitudes)],
+    [Math.max(...latitudes), Math.max(...longitudes)],
+  );
 }
 
 export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
@@ -137,72 +151,42 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   let points = [];
   let activeType = null;
   let overlay = null;
+  let overlayLayer = null;
   let loaded = false;
   let latestScale = null;
   let lastSearchAt = 0;
+  let tileErrors = 0;
   const searchCache = new Map();
 
   frameElement.style.aspectRatio = String(MAP_CONTENT_RATIO);
+  frameElement.style.zIndex = "1000";
+  mapStatus.style.zIndex = "1001";
 
-  const map = new maplibregl.Map({
-    container: mapElement,
-    style: MAP_STYLE,
+  const map = L.map(mapElement, {
     center: DEFAULT_CENTER,
     zoom: 10,
-    maxZoom: 22,
-    preserveDrawingBuffer: true,
+    maxZoom: 19,
+    zoomControl: true,
     attributionControl: true,
+    preferCanvas: true,
   });
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), "top-right");
-  map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 130 }), "bottom-left");
+
+  const tileLayer = L.tileLayer(TILE_URL, {
+    minZoom: 0,
+    maxZoom: 19,
+    maxNativeZoom: 19,
+    tileSize: 256,
+    detectRetina: false,
+    updateWhenIdle: false,
+    keepBuffer: 3,
+    attribution: "© OpenStreetMap contributors © CARTO",
+  }).addTo(map);
+
+  L.control.scale({ metric: true, imperial: false, maxWidth: 130 }).addTo(map);
+  const pointLayer = L.layerGroup().addTo(map);
 
   function setMapStatus(message) {
     mapStatus.textContent = message;
-  }
-
-  function updatePointSource() {
-    const source = map.getSource(POINT_SOURCE);
-    if (source) source.setData(pointsGeoJson(points));
-  }
-
-  function registerMarkerImages() {
-    Object.values(FIELDWORK_TYPES).forEach((definition) => {
-      const id = `fieldwork-${definition.code}`;
-      if (!map.hasImage(id)) map.addImage(id, drawMarkerCanvas(definition), { pixelRatio: 2 });
-    });
-  }
-
-  function addPointLayers() {
-    map.addSource(POINT_SOURCE, { type: "geojson", data: pointsGeoJson(points) });
-    map.addLayer({
-      id: POINT_LAYER,
-      type: "symbol",
-      source: POINT_SOURCE,
-      layout: {
-        "icon-image": ["get", "icon"],
-        "icon-size": 0.72,
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-      },
-    });
-    map.addLayer({
-      id: LABEL_LAYER,
-      type: "symbol",
-      source: POINT_SOURCE,
-      layout: {
-        "text-field": ["get", "label"],
-        "text-size": 14,
-        "text-offset": [0, 1.55],
-        "text-anchor": "top",
-        "text-allow-overlap": true,
-        "text-ignore-placement": true,
-      },
-      paint: {
-        "text-color": "#111827",
-        "text-halo-color": "#FFFFFF",
-        "text-halo-width": 2,
-      },
-    });
   }
 
   function framePixels() {
@@ -221,21 +205,34 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   function frameCorners() {
     const pixels = framePixels();
     return [
-      map.unproject([pixels.left, pixels.top]).toArray(),
-      map.unproject([pixels.right, pixels.top]).toArray(),
-      map.unproject([pixels.right, pixels.bottom]).toArray(),
-      map.unproject([pixels.left, pixels.bottom]).toArray(),
-    ];
+      map.containerPointToLatLng([pixels.left, pixels.top]),
+      map.containerPointToLatLng([pixels.right, pixels.top]),
+      map.containerPointToLatLng([pixels.right, pixels.bottom]),
+      map.containerPointToLatLng([pixels.left, pixels.bottom]),
+    ].map((coordinate) => [coordinate.lng, coordinate.lat]);
   }
 
   function updateScale() {
     if (!loaded) return;
     const pixels = framePixels();
-    const west = map.unproject([pixels.left, pixels.top + pixels.height / 2]).toArray();
-    const east = map.unproject([pixels.right, pixels.top + pixels.height / 2]).toArray();
-    const groundWidth = haversineDistanceMetres(west, east);
+    const west = map.containerPointToLatLng([pixels.left, pixels.top + pixels.height / 2]);
+    const east = map.containerPointToLatLng([pixels.right, pixels.top + pixels.height / 2]);
+    const groundWidth = haversineDistanceMetres([west.lng, west.lat], [east.lng, east.lat]);
     latestScale = scaleFromFrameWidth(groundWidth);
-    setMapStatus(`A1 map frame · approximately 1:${latestScale.toLocaleString("en-AU")} · pan and zoom the map inside the blue outline`);
+    const tileWarning = tileErrors ? " · some background tiles were unavailable" : "";
+    setMapStatus(`A1 map frame · approximately 1:${latestScale.toLocaleString("en-AU")} · pan and zoom inside the blue outline${tileWarning}`);
+  }
+
+  function updatePointLayer() {
+    pointLayer.clearLayers();
+    points.forEach((point) => {
+      L.marker([point.latitude, point.longitude], {
+        icon: pointIcon(point),
+        interactive: false,
+        keyboard: false,
+        pane: "markerPane",
+      }).addTo(pointLayer);
+    });
   }
 
   function updateActiveButtons() {
@@ -243,7 +240,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
       button.classList.toggle("active", button.dataset.pointType === activeType);
     });
     element("map-pan-mode").classList.toggle("active", activeType === null);
-    map.getCanvas().style.cursor = activeType ? "crosshair" : "grab";
+    mapElement.style.cursor = activeType ? "crosshair" : "grab";
   }
 
   function renderPointTable() {
@@ -285,7 +282,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
       remove.title = `Remove ${record.label}`;
       remove.addEventListener("click", () => {
         points = renumberPoints(points.filter((candidate) => candidate.id !== point.id));
-        updatePointSource();
+        updatePointLayer();
         renderPointTable();
       });
       actionCell.append(remove);
@@ -308,7 +305,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
         color: definition.color,
       },
     ]);
-    updatePointSource();
+    updatePointLayer();
     renderPointTable();
     const added = points.at(-1);
     setStatus(`${added.label} placed at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}.`);
@@ -316,18 +313,16 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
 
   function fitCoordinates(coordinates) {
     if (!coordinates.length) return;
-    const bounds = new maplibregl.LngLatBounds();
-    coordinates.forEach((coordinate) => bounds.extend(coordinate));
+    const bounds = L.latLngBounds(coordinates.map(([longitude, latitude]) => [latitude, longitude]));
     const pixels = framePixels();
     map.fitBounds(bounds, {
-      padding: {
-        top: Math.max(35, pixels.top + 25),
-        right: Math.max(35, mapElement.clientWidth - pixels.right + 25),
-        bottom: Math.max(35, mapElement.clientHeight - pixels.bottom + 25),
-        left: Math.max(35, pixels.left + 25),
-      },
+      paddingTopLeft: [Math.max(35, pixels.left + 25), Math.max(35, pixels.top + 25)],
+      paddingBottomRight: [
+        Math.max(35, mapElement.clientWidth - pixels.right + 25),
+        Math.max(35, mapElement.clientHeight - pixels.bottom + 25),
+      ],
       maxZoom: 19,
-      duration: 700,
+      animate: true,
     });
   }
 
@@ -335,29 +330,21 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     if (!file) return;
     setStatus(`Reading georeferenced plan ${file.name}…`);
     try {
-      if (!loaded) await new Promise((resolve) => map.once("load", resolve));
       const next = await readGeoTiffOverlay(file, overlayCrs.value);
       overlay = next;
-      if (map.getLayer(OVERLAY_LAYER)) map.removeLayer(OVERLAY_LAYER);
-      if (map.getSource(OVERLAY_SOURCE)) map.removeSource(OVERLAY_SOURCE);
-      map.addSource(OVERLAY_SOURCE, {
-        type: "image",
-        url: next.dataUrl,
-        coordinates: next.coordinates,
-      });
-      map.addLayer(
-        {
-          id: OVERLAY_LAYER,
-          type: "raster",
-          source: OVERLAY_SOURCE,
-          paint: { "raster-opacity": Number(overlayOpacity.value) },
-        },
-        POINT_LAYER,
-      );
+      if (overlayLayer) map.removeLayer(overlayLayer);
+      overlayLayer = L.imageOverlay(next.dataUrl, overlayBounds(next.coordinates), {
+        opacity: Number(overlayOpacity.value),
+        interactive: false,
+        pane: "overlayPane",
+      }).addTo(map);
+      overlayLayer.bringToFront();
+      pointLayer.bringToFront?.();
       fitCoordinates(next.coordinates);
       setStatus(`${file.name} added using ${next.sourceCrs}.`);
     } catch (error) {
       overlay = null;
+      overlayLayer = null;
       setStatus(`Unable to add GeoTIFF: ${error.message}`, "error");
     } finally {
       overlayInput.value = "";
@@ -365,10 +352,19 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   }
 
   function clearOverlay() {
-    if (map.getLayer(OVERLAY_LAYER)) map.removeLayer(OVERLAY_LAYER);
-    if (map.getSource(OVERLAY_SOURCE)) map.removeSource(OVERLAY_SOURCE);
+    if (overlayLayer) map.removeLayer(overlayLayer);
+    overlayLayer = null;
     overlay = null;
     setStatus("Georeferenced plan overlay removed.");
+  }
+
+  function centreOnResult(result) {
+    const latitude = Number(result.lat);
+    const longitude = Number(result.lon);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    map.flyTo([latitude, longitude], 17, { animate: true, duration: 0.7 });
+    const projectAddress = document.querySelector('[name="projectAddress"]');
+    if (projectAddress && !projectAddress.value.trim()) projectAddress.value = result.display_name;
   }
 
   function showSearchResults(results) {
@@ -381,9 +377,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
       button.textContent = result.display_name;
       button.addEventListener("click", () => {
         searchResults.hidden = true;
-        map.flyTo({ center: [Number(result.lon), Number(result.lat)], zoom: 17, essential: true });
-        const projectAddress = document.querySelector('[name="projectAddress"]');
-        if (projectAddress && !projectAddress.value.trim()) projectAddress.value = result.display_name;
+        centreOnResult(result);
       });
       searchResults.append(button);
     });
@@ -392,8 +386,8 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   function parsedCoordinates(query) {
     const match = /^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(query);
     if (!match) return null;
-    let first = Number(match[1]);
-    let second = Number(match[2]);
+    const first = Number(match[1]);
+    const second = Number(match[2]);
     if (Math.abs(first) <= 90 && Math.abs(second) <= 180) return [second, first];
     if (Math.abs(first) <= 180 && Math.abs(second) <= 90) return [first, second];
     return null;
@@ -407,13 +401,15 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     }
     const coordinate = parsedCoordinates(cleaned);
     if (coordinate) {
-      map.flyTo({ center: coordinate, zoom: 18, essential: true });
+      map.flyTo([coordinate[1], coordinate[0]], 18, { animate: true, duration: 0.7 });
       searchResults.hidden = true;
       return;
     }
 
     if (searchCache.has(cleaned)) {
-      showSearchResults(searchCache.get(cleaned));
+      const cached = searchCache.get(cleaned);
+      showSearchResults(cached);
+      if (cached[0]) centreOnResult(cached[0]);
       return;
     }
     const wait = Math.max(0, 1000 - (Date.now() - lastSearchAt));
@@ -428,20 +424,33 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
       const results = await response.json();
       searchCache.set(cleaned, results);
       showSearchResults(results);
-      setStatus(results.length ? "Choose a matching site from the search results." : "No matching site was found.", results.length ? "neutral" : "warning");
+      if (results[0]) centreOnResult(results[0]);
+      setStatus(
+        results.length
+          ? "Centred on the best matching site. Choose another result if needed."
+          : "No matching site was found.",
+        results.length ? "neutral" : "warning",
+      );
     } catch (error) {
       setStatus(`Site search failed: ${error.message}. You can still enter latitude, longitude directly.`, "error");
     }
   }
 
-  function awaitIdle() {
+  function waitForTiles(timeout = 8000) {
     return new Promise((resolve) => {
-      if (map.loaded() && !map.isMoving()) {
-        map.triggerRepaint();
+      if (!tileLayer.isLoading?.()) {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
-      } else {
-        map.once("idle", resolve);
+        return;
       }
+      let completed = false;
+      const finish = () => {
+        if (completed) return;
+        completed = true;
+        tileLayer.off("load", finish);
+        resolve();
+      };
+      tileLayer.once("load", finish);
+      setTimeout(finish, timeout);
     });
   }
 
@@ -510,8 +519,15 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   }
 
   async function captureMap() {
-    await awaitIdle();
-    const source = map.getCanvas();
+    await waitForTiles();
+    const source = await html2canvas(mapElement, {
+      backgroundColor: "#FFFFFF",
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      imageTimeout: 10000,
+      scale: Math.min(2, window.devicePixelRatio || 1),
+    });
     const pixels = framePixels();
     const scaleX = source.width / mapElement.clientWidth;
     const scaleY = source.height / mapElement.clientHeight;
@@ -565,25 +581,43 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     const headers = ["ID", "Type", "Latitude", "Longitude", "MGA2020 Zone", "Easting", "Northing", "Notes"];
     const rows = points.map((point) => {
       const record = coordinateRecord(point);
-      return [record.label, record.typeName, record.latitudeText, record.longitudeText, record.zone, Math.round(record.easting), Math.round(record.northing), record.notes || ""];
+      return [
+        record.label,
+        record.typeName,
+        record.latitudeText,
+        record.longitudeText,
+        record.zone,
+        Math.round(record.easting),
+        Math.round(record.northing),
+        record.notes || "",
+      ];
     });
-    saveTextFile([headers, ...rows].map((row) => row.map(csvValue).join(",")).join("\n"), "fieldwork-locations.csv");
+    saveTextFile(
+      [headers, ...rows].map((row) => row.map(csvValue).join(",")).join("\n"),
+      "fieldwork-locations.csv",
+    );
   }
 
-  map.on("load", () => {
+  map.whenReady(() => {
     loaded = true;
-    registerMarkerImages();
-    addPointLayers();
+    map.invalidateSize(false);
     updateScale();
   });
-  map.on("moveend", updateScale);
-  map.on("zoomend", updateScale);
+  map.on("moveend zoomend", updateScale);
   map.on("click", (event) => {
-    if (activeType) addPoint(activeType, event.lngLat.lng, event.lngLat.lat);
+    if (activeType) addPoint(activeType, event.latlng.lng, event.latlng.lat);
+  });
+  tileLayer.on("load", () => {
+    loaded = true;
+    updateScale();
+  });
+  tileLayer.on("tileerror", () => {
+    tileErrors += 1;
+    updateScale();
   });
 
   new ResizeObserver(() => {
-    map.resize();
+    map.invalidateSize(false);
     updateScale();
   }).observe(mapElement);
 
@@ -617,27 +651,32 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     }
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        map.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 18, essential: true });
+        map.flyTo([position.coords.latitude, position.coords.longitude], 18, {
+          animate: true,
+          duration: 0.7,
+        });
       },
       (error) => setStatus(`Unable to use current location: ${error.message}`, "error"),
       { enableHighAccuracy: true, timeout: 10000 },
     );
   });
-  element("fit-points").addEventListener("click", () => fitCoordinates(points.map((point) => [point.longitude, point.latitude])));
+  element("fit-points").addEventListener("click", () =>
+    fitCoordinates(points.map((point) => [point.longitude, point.latitude])),
+  );
   element("undo-point").addEventListener("click", () => {
     if (!points.length) return;
     points = renumberPoints(points.slice(0, -1));
-    updatePointSource();
+    updatePointLayer();
     renderPointTable();
   });
   element("clear-points").addEventListener("click", () => {
     points = [];
-    updatePointSource();
+    updatePointLayer();
     renderPointTable();
   });
   overlayInput.addEventListener("change", () => addOverlay(overlayInput.files[0]));
   overlayOpacity.addEventListener("input", () => {
-    if (map.getLayer(OVERLAY_LAYER)) map.setPaintProperty(OVERLAY_LAYER, "raster-opacity", Number(overlayOpacity.value));
+    overlayLayer?.setOpacity(Number(overlayOpacity.value));
   });
   element("remove-overlay").addEventListener("click", clearOverlay);
   element("fit-overlay").addEventListener("click", () => {
@@ -648,6 +687,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   element("export-coordinate-csv").addEventListener("click", exportCsv);
 
   updateActiveButtons();
+  updatePointLayer();
   renderPointTable();
 
   return {
