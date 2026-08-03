@@ -12,6 +12,8 @@
 - Added KML, KMZ and coordinate CSV export.
 - Added map capture, map title-block output and paginated coordinate-schedule slides to the PowerPoint.
 - Added tests for point numbering, coordinate conversion, map-scale rounding, KML/KMZ and map-based PPTX generation.
+- Added a resilient OpenStreetMap raster base layer and direct geocoding fallback.
+- Address searches now centre automatically on the best matching result.
 
 ## 2.0.0 - 2026-08-03
 
