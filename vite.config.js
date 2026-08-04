@@ -7,6 +7,10 @@ export default defineConfig({
       transform(code, id) {
         if (!id.replaceAll("\\", "/").endsWith("/src/app.js")) return null;
         let next = code.replace(
+          'from "./model.js";',
+          'from "./model-final.js";',
+        );
+        next = next.replace(
           'from "./map-planner.js";',
           'from "./map-planner-enhanced.js";',
         );
@@ -14,6 +18,9 @@ export default defineConfig({
           'from "./presentation.js";',
           'from "./presentation-final.js";',
         );
+        if (!next.includes('from "./model-final.js";')) {
+          throw new Error("Project model import was not found during the build.");
+        }
         if (!next.includes('from "./map-planner-enhanced.js";')) {
           throw new Error("Map planner import was not found during the build.");
         }
