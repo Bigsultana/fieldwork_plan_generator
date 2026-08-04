@@ -1,0 +1,21 @@
+.fieldwork-leaflet-marker > div > span:first-child {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.fieldwork-leaflet-marker > div > span:last-child {
+  margin-top: 3px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: #111827 !important;
+  text-shadow:
+    -2px -2px 0 rgba(255, 255, 255, 0.95),
+    0 -2px 0 rgba(255, 255, 255, 0.95),
+    2px -2px 0 rgba(255, 255, 255, 0.95),
+    -2px 0 0 rgba(255, 255, 255, 0.95),
+    2px 0 0 rgba(255, 255, 255, 0.95),
+    -2px 2px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 rgba(255, 255, 255, 0.95),
+    2px 2px 0 rgba(255, 255, 255, 0.95) !important;
+}

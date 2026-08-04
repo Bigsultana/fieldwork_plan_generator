@@ -1,12 +1,21 @@
 {
   "id": "fieldwork-plan-generator",
   "name": "Fieldwork Plan Generator",
-  "version": "2.0.0",
-  "status": "cloudflare-static-migration",
+  "version": "2.2.0",
+  "status": "map-planning-preview",
   "owner": "Matthew Raison",
-  "stack": ["Vite", "JavaScript", "PptxGenJS", "Cloudflare Workers Static Assets"],
+  "stack": [
+    "Vite",
+    "JavaScript",
+    "Leaflet",
+    "GeoTIFF.js",
+    "Proj4js",
+    "dxf-parser",
+    "PptxGenJS",
+    "Cloudflare Workers Static Assets"
+  ],
   "deployment": "Cloudflare Git integration",
   "distribution": "owner-only source; browser deployment",
-  "privacy_model": "client-side file processing",
+  "privacy_model": "client-side file processing; cached geocoding and basemap tile proxy",
   "repository_identity_pending": false
 }

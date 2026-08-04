@@ -1,9 +1,9 @@
 {
   "name": "fieldwork-plan-generator",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
-  "description": "Client-side A1 fieldwork-plan PowerPoint generator.",
+  "description": "Client-side A1 fieldwork-plan and map planner PowerPoint generator.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +11,13 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "dxf-parser": "1.1.2",
+    "geotiff": "3.0.5",
+    "html2canvas": "1.4.1",
+    "jszip": "3.10.1",
+    "leaflet": "1.9.4",
     "pptxgenjs": "4.0.1",
+    "proj4": "2.20.9",
     "utif": "3.1.0"
   },
   "devDependencies": {

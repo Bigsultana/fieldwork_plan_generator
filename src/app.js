@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./marker-overrides.css";
 import {
   ACCEPTED_IMAGE_EXTENSIONS,
   DEFAULT_PROJECT,
@@ -11,6 +12,7 @@ import {
   validateSheets,
 } from "./model.js";
 import { downloadPresentation, generatePresentation } from "./presentation.js";
+import { createMapPlanner } from "./map-planner.js";
 
 const MAX_IMAGES = 60;
 const PROFILE_KEY = "fieldwork-plan-generator-profile-v2";
@@ -28,6 +30,8 @@ const progress = document.querySelector("#progress");
 const generateButton = document.querySelector("#generate");
 const profileFile = document.querySelector("#profile-file");
 const dropZone = document.querySelector("#drop-zone");
+const includeMapInput = document.querySelector("#include-map");
+const mapSheetNumberInput = document.querySelector("#map-sheet-number");
 
 let sheets = [];
 let logoFile = null;
@@ -41,9 +45,9 @@ function formProject() {
 function fillProject(project) {
   const merged = { ...DEFAULT_PROJECT, ...project };
   for (const [key, value] of Object.entries(merged)) {
-    const element = form.elements.namedItem(key);
-    if (!element) continue;
-    element.value = key === "accentColor" ? `#${normaliseHex(value)}` : value;
+    const input = form.elements.namedItem(key);
+    if (!input) continue;
+    input.value = key === "accentColor" ? `#${normaliseHex(value)}` : value;
   }
 }
 
@@ -68,6 +72,8 @@ function setBusy(busy) {
   progress.hidden = !busy;
   if (!busy) progress.value = 0;
 }
+
+const mapPlanner = createMapPlanner({ getProject: formProject, setStatus });
 
 function updateSheet(id, key, value) {
   sheets = sheets.map((sheet) => (sheet.id === id ? { ...sheet, [key]: value } : sheet));
@@ -115,18 +121,12 @@ function renderRegister() {
 
   sheets.forEach((sheet, index) => {
     const row = document.createElement("tr");
-
     const orderCell = document.createElement("td");
     const order = document.createElement("div");
     order.className = "order-buttons";
     order.append(
       actionButton("↑", `Move ${sheet.filename} up`, () => moveSheet(sheet.id, -1), index === 0),
-      actionButton(
-        "↓",
-        `Move ${sheet.filename} down`,
-        () => moveSheet(sheet.id, 1),
-        index === sheets.length - 1,
-      ),
+      actionButton("↓", `Move ${sheet.filename} down`, () => moveSheet(sheet.id, 1), index === sheets.length - 1),
     );
     orderCell.append(order);
 
@@ -134,25 +134,18 @@ function renderRegister() {
     fileCell.className = "filename-cell";
     fileCell.textContent = sheet.filename;
     fileCell.title = sheet.filename;
-
     const sheetCell = document.createElement("td");
     sheetCell.append(registerInput(sheet, "sheetNumber", "small-input"));
-
     const title1Cell = document.createElement("td");
     title1Cell.append(registerInput(sheet, "drawingTitle1"));
-
     const title2Cell = document.createElement("td");
     title2Cell.append(registerInput(sheet, "drawingTitle2"));
-
     const title3Cell = document.createElement("td");
     title3Cell.append(registerInput(sheet, "drawingTitle3"));
-
     const scaleCell = document.createElement("td");
     scaleCell.append(registerInput(sheet, "scale", "small-input"));
-
     const revisionCell = document.createElement("td");
     revisionCell.append(registerInput(sheet, "revision", "small-input"));
-
     const removeCell = document.createElement("td");
     removeCell.append(
       actionButton("×", `Remove ${sheet.filename}`, () => {
@@ -160,18 +153,7 @@ function renderRegister() {
         renderRegister();
       }),
     );
-
-    row.append(
-      orderCell,
-      fileCell,
-      sheetCell,
-      title1Cell,
-      title2Cell,
-      title3Cell,
-      scaleCell,
-      revisionCell,
-      removeCell,
-    );
+    row.append(orderCell, fileCell, sheetCell, title1Cell, title2Cell, title3Cell, scaleCell, revisionCell, removeCell);
     registerBody.append(row);
   });
 }
@@ -185,16 +167,13 @@ function addFiles(fileList) {
   const files = [...fileList].filter(supportedImage);
   const room = Math.max(0, MAX_IMAGES - sheets.length);
   const accepted = files.slice(0, room);
-  const start = sheets.length;
+  const mapOffset = includeMapInput.checked ? 1 : 0;
+  const start = sheets.length + mapOffset;
   sheets = [...sheets, ...accepted.map((file, index) => sheetFromFile(file, start + index + 1))];
   renderRegister();
-  if (files.length > accepted.length) {
-    setStatus(`Only the first ${MAX_IMAGES} supported images were retained.`, "warning");
-  } else if (accepted.length) {
-    setStatus(`${accepted.length} image${accepted.length === 1 ? "" : "s"} added.`);
-  } else {
-    setStatus("No supported image files were selected.", "warning");
-  }
+  if (files.length > accepted.length) setStatus(`Only the first ${MAX_IMAGES} supported images were retained.`, "warning");
+  else if (accepted.length) setStatus(`${accepted.length} image${accepted.length === 1 ? "" : "s"} added.`);
+  else setStatus("No supported image files were selected.", "warning");
   imageInput.value = "";
 }
 
@@ -211,11 +190,7 @@ async function applyCsv(file) {
 }
 
 function exportProfile() {
-  const profile = {
-    version: 2,
-    project: formProject(),
-    exportedAt: new Date().toISOString(),
-  };
+  const profile = { version: 2, project: formProject(), exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(profile, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -246,8 +221,20 @@ async function generate(event) {
   event.preventDefault();
   const project = formProject();
   const errors = validateSheets(sheets);
+  const warnings = [];
+  const mapIncluded = mapPlanner.isIncluded();
+  const mapSheetNumber = mapSheetNumberInput.value.trim();
+  const companyName = String(project.companyName || "").trim();
+
   if (!project.projectTitle.trim()) errors.unshift("Project title is required.");
-  if (sheets.length === 0) errors.push("Select at least one fieldwork image.");
+  if (!mapIncluded && sheets.length === 0) errors.push("Create a map plan or select at least one fieldwork image.");
+  if (mapIncluded && !mapSheetNumber) errors.push("Map sheet number is required.");
+  if (mapIncluded && sheets.some((sheet) => String(sheet.sheetNumber).trim() === mapSheetNumber)) {
+    errors.push(`Map sheet number '${mapSheetNumber}' duplicates an image sheet number.`);
+  }
+  if (!companyName || companyName.toUpperCase() === "COMPANY NAME") {
+    warnings.push("Company details were not completed, so neutral FIELDWORK PLAN branding was used.");
+  }
   if (errors.length) {
     setStatus(errors.join(" "), "error");
     return;
@@ -256,16 +243,36 @@ async function generate(event) {
   saveProjectDefaults();
   setBusy(true);
   try {
-    const result = await generatePresentation(project, sheets, logoFile, (current, total, message) => {
-      progress.max = Math.max(total, 1);
-      progress.value = current;
-      setStatus(message);
-    });
+    progress.max = Math.max(sheets.length + (mapIncluded ? 1 : 0), 1);
+    progress.value = 0;
+    let mapPlan = null;
+    if (mapIncluded) {
+      setStatus("Capturing the PowerPoint map extent…");
+      mapPlan = await mapPlanner.capturePlan();
+      progress.value = 1;
+    }
+    const result = await generatePresentation(
+      project,
+      sheets,
+      logoFile,
+      (current, total, message) => {
+        progress.max = Math.max(total + (mapIncluded ? 1 : 0), 1);
+        progress.value = current + (mapIncluded ? 1 : 0);
+        setStatus(message);
+      },
+      mapPlan,
+    );
     const filename = downloadPresentation(result.buffer, project);
-    const warning = result.missing.length
-      ? ` ${result.missing.length} image${result.missing.length === 1 ? " was" : "s were"} replaced with a warning placeholder.`
-      : "";
-    setStatus(`${filename} generated.${warning}`, result.missing.length ? "warning" : "success");
+    if (result.missing.length) {
+      warnings.push(
+        `${result.missing.length} image${result.missing.length === 1 ? " was" : "s were"} replaced with a warning placeholder.`,
+      );
+    }
+    const warningText = warnings.length ? ` ${warnings.join(" ")}` : "";
+    setStatus(
+      `${filename} generated.${warningText}`,
+      warnings.length ? "warning" : "success",
+    );
   } catch (error) {
     console.error(error);
     setStatus(`PowerPoint generation failed: ${error.message}`, "error");
@@ -288,7 +295,7 @@ document.querySelector("#sort-files").addEventListener("click", () => {
   setStatus("Images sorted by filename.");
 });
 document.querySelector("#renumber-files").addEventListener("click", () => {
-  sheets = renumberSheets(sheets);
+  sheets = renumberSheets(sheets, includeMapInput.checked ? 2 : 1);
   renderRegister();
   setStatus("Sheet numbers reset to register order.");
 });

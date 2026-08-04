@@ -3,10 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Create A1 fieldwork-plan PowerPoint files entirely in your browser."
-    />
+    <meta name="description" content="Create mapped A1 fieldwork-plan PowerPoint files entirely in your browser." />
     <title>Fieldwork Plan Generator</title>
     <link rel="icon" href="data:," />
   </head>
@@ -16,8 +13,7 @@
         <p class="eyebrow">Engineering fieldwork utility</p>
         <h1>Fieldwork Plan Generator</h1>
         <p class="hero-copy">
-          Combine plans, maps, sections and marked-up images into a formatted A1 PowerPoint.
-          Files stay in this browser and are not uploaded to a server.
+          Find a site, place numbered fieldwork locations, overlay georeferenced plans and combine the map with supporting drawings in an A1 PowerPoint. Files stay in this browser.
         </p>
       </div>
       <div class="hero-actions">
@@ -31,92 +27,34 @@
       <form id="generator-form" novalidate>
         <section class="panel">
           <div class="section-heading">
-            <div>
-              <p class="step">1</p>
-              <h2>Project and title block</h2>
-            </div>
+            <div><p class="step">1</p><h2>Project and title block</h2></div>
             <button id="restore-profile" class="text-button" type="button">Restore saved defaults</button>
           </div>
-
           <div class="form-grid three">
-            <label>
-              Project title <span aria-hidden="true">*</span>
-              <input name="projectTitle" required autocomplete="off" />
-            </label>
-            <label>
-              Project number
-              <input name="projectNumber" autocomplete="off" />
-            </label>
-            <label>
-              Client
-              <input name="clientName" autocomplete="off" />
-            </label>
-            <label class="span-two">
-              Project address
-              <input name="projectAddress" autocomplete="off" />
-            </label>
-            <label>
-              Drawing status
-              <select name="drawingStatus">
-                <option>FOR INFORMATION</option>
-                <option>FOR REVIEW</option>
-                <option>PRELIMINARY</option>
-                <option>DRAFT - NOT FOR CONSTRUCTION</option>
-                <option>FOR CONSTRUCTION</option>
-                <option>AS CONSTRUCTED</option>
-              </select>
-            </label>
-            <label>
-              Drawn by
-              <input name="drawnBy" maxlength="12" autocomplete="off" />
-            </label>
-            <label>
-              Designed by
-              <input name="designedBy" maxlength="12" autocomplete="off" />
-            </label>
-            <label>
-              Approved by
-              <input name="approvedBy" maxlength="12" autocomplete="off" />
-            </label>
-            <label>
-              Date
-              <input name="date" autocomplete="off" />
-            </label>
-            <label>
-              Figure prefix
-              <input name="sheetPrefix" maxlength="8" autocomplete="off" />
-            </label>
-            <label>
-              Accent colour
-              <input name="accentColor" type="color" value="#245b8a" />
-            </label>
+            <label>Project title <span aria-hidden="true">*</span><input name="projectTitle" required autocomplete="off" /></label>
+            <label>Project number<input name="projectNumber" autocomplete="off" /></label>
+            <label>Client<input name="clientName" autocomplete="off" /></label>
+            <label class="span-two">Project address<input name="projectAddress" autocomplete="off" /></label>
+            <label>Drawing status<select name="drawingStatus">
+              <option>FOR INFORMATION</option><option>FOR REVIEW</option><option>PRELIMINARY</option>
+              <option>DRAFT - NOT FOR CONSTRUCTION</option><option>FOR CONSTRUCTION</option><option>AS CONSTRUCTED</option>
+            </select></label>
+            <label>Drawn by<input name="drawnBy" maxlength="12" autocomplete="off" /></label>
+            <label>Designed by<input name="designedBy" maxlength="12" autocomplete="off" /></label>
+            <label>Approved by<input name="approvedBy" maxlength="12" autocomplete="off" /></label>
+            <label>Date<input name="date" autocomplete="off" /></label>
+            <label>Figure prefix<input name="sheetPrefix" maxlength="8" autocomplete="off" /></label>
+            <label>Accent colour<input name="accentColor" type="color" value="#245b8a" /></label>
           </div>
-
           <details class="company-details">
             <summary>Company details and logo</summary>
             <div class="form-grid three detail-grid">
-              <label>
-                Company name
-                <input name="companyName" autocomplete="organization" />
-              </label>
-              <label class="span-two">
-                Company address
-                <input name="companyAddress" autocomplete="street-address" />
-              </label>
-              <label>
-                Phone
-                <input name="companyPhone" autocomplete="tel" />
-              </label>
-              <label>
-                Email
-                <input name="companyEmail" type="email" autocomplete="email" />
-              </label>
-              <label>
-                Website
-                <input name="companyWebsite" autocomplete="url" />
-              </label>
-              <label class="file-label span-three">
-                Company logo
+              <label>Company name<input name="companyName" autocomplete="organization" /></label>
+              <label class="span-two">Company address<input name="companyAddress" autocomplete="street-address" /></label>
+              <label>Phone<input name="companyPhone" autocomplete="tel" /></label>
+              <label>Email<input name="companyEmail" type="email" autocomplete="email" /></label>
+              <label>Website<input name="companyWebsite" autocomplete="url" /></label>
+              <label class="file-label span-three">Company logo
                 <input id="logo-files" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,.tif,.tiff" />
                 <small>Optional. PNG with a transparent background works best.</small>
               </label>
@@ -124,55 +62,122 @@
           </details>
         </section>
 
-        <section class="panel">
+        <section class="panel map-panel">
           <div class="section-heading">
-            <div>
-              <p class="step">2</p>
-              <h2>Select fieldwork images</h2>
-            </div>
-            <p id="image-count" class="section-meta">No images selected</p>
+            <div><p class="step">2</p><h2>Build the mapped fieldwork plan</h2></div>
+            <label class="inline-check"><input id="include-map" type="checkbox" checked /> Include map and coordinate schedule in PowerPoint</label>
           </div>
 
-          <label id="drop-zone" class="drop-zone" for="image-files">
-            <strong>Choose or drop plans and images here</strong>
-            <span>PNG, JPEG, WebP, BMP and TIFF. Up to 60 files.</span>
-            <input
-              id="image-files"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/bmp,.tif,.tiff"
-              multiple
-              hidden
-            />
-          </label>
+          <div class="map-sheet-settings form-grid three">
+            <label>Map sheet number<input id="map-sheet-number" value="001" maxlength="12" /></label>
+            <label>Map drawing title<input id="map-title" value="Proposed Fieldwork Plan" /></label>
+            <label>Map subtitle<input id="map-subtitle" placeholder="Site location or stage" /></label>
+          </div>
 
+          <div class="map-search-row">
+            <div class="search-box">
+              <label for="site-search">Find site by address, place or latitude/longitude</label>
+              <div class="search-input-row">
+                <input id="site-search" placeholder="e.g. 1 Example Street, Oxenford QLD or -27.89, 153.31" autocomplete="off" />
+                <button id="site-search-button" class="button primary" type="button">Search</button>
+              </div>
+              <div id="search-results" class="search-results" hidden></div>
+              <small class="map-attribution-note">Map and site search data © OpenStreetMap contributors. Search runs only when submitted.</small>
+            </div>
+            <button id="locate-project-address" class="button secondary" type="button">Use project address</button>
+            <button id="use-current-location" class="button secondary" type="button">Use current location</button>
+          </div>
+
+          <div class="map-layout">
+            <aside class="map-tools">
+              <div class="tool-group">
+                <h3>Map mode</h3>
+                <button id="map-pan-mode" class="tool-button active" type="button">Pan / zoom</button>
+              </div>
+              <div class="tool-group">
+                <h3>Place fieldwork locations</h3>
+                <div class="point-palette">
+                  <button class="point-tool" data-point-type="BH" type="button"><span class="marker-preview bh">⊕</span>Borehole</button>
+                  <button class="point-tool" data-point-type="TP" type="button"><span class="marker-preview tp">■</span>Test pit</button>
+                  <button class="point-tool" data-point-type="CPT" type="button"><span class="marker-preview cpt">◆</span>CPT</button>
+                  <button class="point-tool" data-point-type="DCP" type="button"><span class="marker-preview dcp">▲</span>DCP</button>
+                  <button class="point-tool" data-point-type="MW" type="button"><span class="marker-preview mw">◎</span>Monitoring well</button>
+                  <button class="point-tool" data-point-type="SP" type="button"><span class="marker-preview sp">+</span>Survey point</button>
+                </div>
+                <div class="mini-toolbar">
+                  <button id="undo-point" class="button secondary" type="button">Undo last</button>
+                  <button id="fit-points" class="button secondary" type="button">Fit locations</button>
+                  <button id="clear-points" class="button danger" type="button">Clear</button>
+                </div>
+              </div>
+              <div class="tool-group">
+                <h3>Georeferenced plan</h3>
+                <label>GeoTIFF file<input id="geotiff-file" type="file" accept=".tif,.tiff,image/tiff" /></label>
+                <label>Coordinate system<select id="geotiff-crs">
+                  <option value="auto">Detect from GeoTIFF</option>
+                  <option value="EPSG:7856">GDA2020 / MGA Zone 56</option>
+                  <option value="EPSG:7855">GDA2020 / MGA Zone 55</option>
+                  <option value="EPSG:28356">GDA94 / MGA Zone 56</option>
+                  <option value="EPSG:28355">GDA94 / MGA Zone 55</option>
+                  <option value="EPSG:4326">WGS84 latitude / longitude</option>
+                  <option value="EPSG:3857">Web Mercator</option>
+                </select></label>
+                <label>Overlay opacity<input id="overlay-opacity" type="range" min="0" max="1" step="0.05" value="0.65" /></label>
+                <div class="mini-toolbar">
+                  <button id="fit-overlay" class="button secondary" type="button">Fit overlay</button>
+                  <button id="remove-overlay" class="button danger" type="button">Remove</button>
+                </div>
+                <small>GeoTIFF is supported in this first release. GeoPDF and image + world-file import can be added next.</small>
+              </div>
+              <div class="tool-group">
+                <h3>GIS exports</h3>
+                <div class="mini-toolbar vertical">
+                  <button id="export-kml" class="button secondary" type="button">Download .kml</button>
+                  <button id="export-kmz" class="button secondary" type="button">Download .kmz</button>
+                  <button id="export-coordinate-csv" class="button secondary" type="button">Download coordinates .csv</button>
+                </div>
+              </div>
+            </aside>
+
+            <div class="map-stage">
+              <div id="site-map" class="site-map" aria-label="Interactive site map"></div>
+              <div id="map-print-frame" class="map-print-frame" aria-hidden="true"><span>A1 PowerPoint map extent</span></div>
+              <div id="map-status" class="map-status">Loading map…</div>
+            </div>
+          </div>
+
+          <div class="coordinate-heading">
+            <div><h3>Fieldwork coordinate schedule</h3><p>WGS84 and calculated MGA2020 coordinates update automatically.</p></div>
+            <p id="point-count" class="section-meta">0 locations</p>
+          </div>
+          <div class="register-wrapper coordinate-wrapper">
+            <table class="sheet-register coordinate-register">
+              <thead><tr><th>ID</th><th>Type</th><th>Latitude</th><th>Longitude</th><th>Grid</th><th>Easting</th><th>Northing</th><th>Notes</th><th><span class="sr-only">Remove</span></th></tr></thead>
+              <tbody id="point-register"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div><p class="step">3</p><h2>Add supporting plans and images</h2></div>
+            <p id="image-count" class="section-meta">No images selected</p>
+          </div>
+          <label id="drop-zone" class="drop-zone" for="image-files">
+            <strong>Choose or drop supporting plans and images here</strong>
+            <span>PNG, JPEG, WebP, BMP and TIFF. Up to 60 files.</span>
+            <input id="image-files" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,.tif,.tiff" multiple hidden />
+          </label>
           <div class="toolbar">
-            <label class="compact-file">
-              Apply CSV metadata
-              <input id="csv-file" type="file" accept="text/csv,.csv" />
-            </label>
+            <label class="compact-file">Apply CSV metadata<input id="csv-file" type="file" accept="text/csv,.csv" /></label>
             <button id="sort-files" class="button secondary" type="button">Sort by filename</button>
             <button id="renumber-files" class="button secondary" type="button">Renumber sheets</button>
             <button id="clear-files" class="button danger" type="button">Clear images</button>
           </div>
-
-          <div id="empty-register" class="empty-state">
-            Select one or more images to create the editable sheet register.
-          </div>
+          <div id="empty-register" class="empty-state">Supporting images are optional when the mapped plan is included.</div>
           <div id="register-wrapper" class="register-wrapper" hidden>
             <table class="sheet-register">
-              <thead>
-                <tr>
-                  <th scope="col">Order</th>
-                  <th scope="col">Image</th>
-                  <th scope="col">Sheet</th>
-                  <th scope="col">Primary title</th>
-                  <th scope="col">Secondary title</th>
-                  <th scope="col">Third line</th>
-                  <th scope="col">Scale</th>
-                  <th scope="col">Rev.</th>
-                  <th scope="col"><span class="sr-only">Remove</span></th>
-                </tr>
-              </thead>
+              <thead><tr><th>Order</th><th>Image</th><th>Sheet</th><th>Primary title</th><th>Secondary title</th><th>Third line</th><th>Scale</th><th>Rev.</th><th><span class="sr-only">Remove</span></th></tr></thead>
               <tbody id="sheet-register"></tbody>
             </table>
           </div>
@@ -180,27 +185,18 @@
 
         <section class="panel output-panel">
           <div class="section-heading">
-            <div>
-              <p class="step">3</p>
-              <h2>Generate PowerPoint</h2>
-            </div>
-            <p class="section-meta">A1 landscape · one image per slide</p>
+            <div><p class="step">4</p><h2>Generate PowerPoint</h2></div>
+            <p class="section-meta">A1 landscape · map, coordinate schedule and supporting plans</p>
           </div>
           <div class="output-row">
-            <div>
-              <p id="status-message" role="status">Ready when project details and images are complete.</p>
-              <progress id="progress" max="100" value="0" hidden></progress>
-            </div>
+            <div><p id="status-message" role="status">Ready to create a mapped fieldwork plan.</p><progress id="progress" max="100" value="0" hidden></progress></div>
             <button id="generate" class="button primary" type="submit">Generate and download .pptx</button>
           </div>
         </section>
       </form>
     </main>
 
-    <footer>
-      <p>Fieldwork Plan Generator · Client-side PowerPoint generation</p>
-    </footer>
-
+    <footer><p>Fieldwork Plan Generator · Client-side map, GIS and PowerPoint generation</p></footer>
     <script type="module" src="/src/app.js"></script>
   </body>
 </html>

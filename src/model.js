@@ -60,19 +60,17 @@ export function sheetFromFile(file, index) {
   };
 }
 
-export function renumberSheets(sheets) {
+export function renumberSheets(sheets, startAt = 1) {
   return sheets.map((sheet, index) => ({
     ...sheet,
-    sheetNumber: String(index + 1).padStart(3, "0"),
+    sheetNumber: String(index + Number(startAt)).padStart(3, "0"),
   }));
 }
 
 export function fitContain(imageWidth, imageHeight, box) {
   const width = Number(imageWidth);
   const height = Number(imageHeight);
-  if (!(width > 0) || !(height > 0)) {
-    throw new Error("Image dimensions must be positive.");
-  }
+  if (!(width > 0) || !(height > 0)) throw new Error("Image dimensions must be positive.");
   const imageRatio = width / height;
   const boxRatio = box.w / box.h;
   let fittedWidth;
@@ -102,10 +100,7 @@ export function sanitizeFilename(value, fallback = "fieldwork-plan") {
 }
 
 export function normaliseHex(value, fallback = "245B8A") {
-  const cleaned = String(value || "")
-    .replace(/^#/, "")
-    .trim()
-    .toUpperCase();
+  const cleaned = String(value || "").replace(/^#/, "").trim().toUpperCase();
   return /^[0-9A-F]{6}$/.test(cleaned) ? cleaned : fallback;
 }
 
@@ -115,16 +110,14 @@ export function parseCsv(text) {
   let field = "";
   let quoted = false;
   const source = String(text || "").replace(/^\uFEFF/, "");
-
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
     const next = source[index + 1];
     if (char === '"' && quoted && next === '"') {
       field += '"';
       index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
+    } else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) {
       row.push(field);
       field = "";
     } else if ((char === "\n" || char === "\r") && !quoted) {
@@ -133,15 +126,11 @@ export function parseCsv(text) {
       if (row.some((value) => value.trim() !== "")) rows.push(row);
       row = [];
       field = "";
-    } else {
-      field += char;
-    }
+    } else field += char;
   }
-
   row.push(field);
   if (row.some((value) => value.trim() !== "")) rows.push(row);
   if (rows.length === 0) return [];
-
   const headers = rows[0].map((header) => header.trim());
   return rows.slice(1).map((values) =>
     Object.fromEntries(headers.map((header, index) => [header, (values[index] || "").trim()])),
@@ -162,9 +151,7 @@ export function applyCsvRows(sheets, rows) {
     if (!row) return sheet;
     const updated = { ...sheet };
     for (const [csvKey, modelKey] of Object.entries(map)) {
-      if (row[csvKey] !== undefined && row[csvKey] !== "") {
-        updated[modelKey] = row[csvKey];
-      }
+      if (row[csvKey] !== undefined && row[csvKey] !== "") updated[modelKey] = row[csvKey];
     }
     return updated;
   });
@@ -187,9 +174,5 @@ export function validateSheets(sheets) {
 }
 
 export function serialisableProject(project) {
-  return {
-    ...DEFAULT_PROJECT,
-    ...project,
-    accentColor: normaliseHex(project.accentColor),
-  };
+  return { ...DEFAULT_PROJECT, ...project, accentColor: normaliseHex(project.accentColor) };
 }
