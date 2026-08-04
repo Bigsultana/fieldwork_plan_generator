@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT } from "../src/model.js";
-import { createPresentation } from "../src/presentation-enhanced.js";
+import { createPresentation } from "../src/presentation-final.js";
 
 const transparentPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 describe("PowerPoint generation", () => {
-  it("creates a valid zipped PPTX payload containing a map, revision strip and supporting sheet", async () => {
+  it("creates a valid zipped PPTX payload with the simplified title block", async () => {
     const project = {
       ...DEFAULT_PROJECT,
       projectTitle: "Test project",
       projectNumber: "TEST-001",
       clientName: "Test client",
+      drawnBy: "MR",
+      approvedBy: "AB",
+      designedBy: "SHOULD NOT DISPLAY",
+      drawingStatus: "SHOULD NOT DISPLAY",
       revision: "A",
       revisionDescription: "Initial issue for fieldwork",
       revisionDate: "03/08/2026",
