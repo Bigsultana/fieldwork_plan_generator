@@ -9,6 +9,12 @@ export const FONT_OPTIONS = Object.freeze([
   "Verdana",
 ]);
 
+export const MAP_RESOLUTION_OPTIONS = Object.freeze([
+  Object.freeze({ value: 1, label: "Standard — 2400 px" }),
+  Object.freeze({ value: 1.5, label: "High — 3600 px" }),
+  Object.freeze({ value: 2, label: "Very high — 4800 px" }),
+]);
+
 export const DEFAULT_EXPORT_STYLE = Object.freeze({
   fontFamily: "Arial",
   markerLabelSize: 18,
@@ -17,6 +23,7 @@ export const DEFAULT_EXPORT_STYLE = Object.freeze({
   titleBlockScale: 1,
   legendFontSize: 14,
   logoScale: 1,
+  mapResolutionScale: 1.5,
   showCoordinateInset: true,
   previewBeforeExport: true,
 });
@@ -25,6 +32,18 @@ function boundedNumber(value, fallback, minimum, maximum) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(maximum, Math.max(minimum, number));
+}
+
+function closestResolution(value) {
+  const requested = boundedNumber(
+    value,
+    DEFAULT_EXPORT_STYLE.mapResolutionScale,
+    MAP_RESOLUTION_OPTIONS[0].value,
+    MAP_RESOLUTION_OPTIONS.at(-1).value,
+  );
+  return MAP_RESOLUTION_OPTIONS.reduce((closest, option) =>
+    Math.abs(option.value - requested) < Math.abs(closest.value - requested) ? option : closest,
+  ).value;
 }
 
 export function normaliseExportStyle(value = {}) {
@@ -69,6 +88,7 @@ export function normaliseExportStyle(value = {}) {
       0.65,
       1.35,
     ),
+    mapResolutionScale: closestResolution(value.mapResolutionScale),
     showCoordinateInset:
       value.showCoordinateInset === undefined
         ? DEFAULT_EXPORT_STYLE.showCoordinateInset
