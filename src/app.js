@@ -13,6 +13,8 @@ import {
 } from "./model.js";
 import { downloadPresentation, generatePresentation } from "./presentation.js";
 import { createMapPlanner } from "./map-planner.js";
+import { showExportPreview } from "./export-preview.js";
+import { loadExportPreferences } from "./export-style.js";
 
 const MAX_IMAGES = 60;
 const PROFILE_KEY = "fieldwork-plan-generator-profile-v2";
@@ -232,8 +234,8 @@ async function generate(event) {
   if (mapIncluded && sheets.some((sheet) => String(sheet.sheetNumber).trim() === mapSheetNumber)) {
     errors.push(`Map sheet number '${mapSheetNumber}' duplicates an image sheet number.`);
   }
-  if (!companyName || companyName.toUpperCase() === "COMPANY NAME") {
-    warnings.push("Company details were not completed, so neutral FIELDWORK PLAN branding was used.");
+  if (!logoFile && (!companyName || companyName.toUpperCase() === "COMPANY NAME")) {
+    warnings.push("No company logo or company name was supplied, so the branding area was left blank.");
   }
   if (errors.length) {
     setStatus(errors.join(" "), "error");
@@ -245,12 +247,35 @@ async function generate(event) {
   try {
     progress.max = Math.max(sheets.length + (mapIncluded ? 1 : 0), 1);
     progress.value = 0;
+    const preferences = loadExportPreferences();
+    let exportStyle = preferences.style;
     let mapPlan = null;
+
     if (mapIncluded) {
       setStatus("Capturing the PowerPoint map extent…");
-      mapPlan = await mapPlanner.capturePlan();
+      mapPlan = await mapPlanner.capturePlan(exportStyle);
       progress.value = 1;
     }
+
+    if (exportStyle.previewBeforeExport) {
+      setStatus("Opening the export preview…");
+      const preview = await showExportPreview({
+        project,
+        initialMapPlan: mapPlan,
+        logoFile,
+        captureMap: mapIncluded ? (style) => mapPlanner.capturePlan(style) : null,
+      });
+      if (!preview.confirmed) {
+        setStatus("PowerPoint export cancelled.", "warning");
+        return;
+      }
+      exportStyle = preview.style;
+      mapPlan = preview.mapPlan;
+    }
+
+    project.exportStyle = exportStyle;
+    if (mapPlan) mapPlan = { ...mapPlan, exportStyle };
+
     const result = await generatePresentation(
       project,
       sheets,
