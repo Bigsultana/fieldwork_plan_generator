@@ -1,6 +1,7 @@
 import "./export-preview.css";
 import {
   FONT_OPTIONS,
+  MAP_RESOLUTION_OPTIONS,
   loadExportPreferences,
   normaliseExportStyle,
   saveExportPreferences,
@@ -34,6 +35,7 @@ function styleFromForm(form) {
     titleBlockScale: data.get("titleBlockScale"),
     legendFontSize: data.get("legendFontSize"),
     logoScale: data.get("logoScale"),
+    mapResolutionScale: data.get("mapResolutionScale"),
     showCoordinateInset: data.get("showCoordinateInset") === "on",
     previewBeforeExport: data.get("previewBeforeExport") === "on",
   });
@@ -200,6 +202,10 @@ export async function showExportPreview({
             <label>Font
               <select name="fontFamily">${FONT_OPTIONS.map((font) => `<option value="${font}">${font}</option>`).join("")}</select>
             </label>
+            <label>Map export resolution
+              <select name="mapResolutionScale">${MAP_RESOLUTION_OPTIONS.map((option) => `<option value="${option.value}">${option.label}</option>`).join("")}</select>
+            </label>
+            <small class="export-preview-help">Higher resolution sharpens map symbols and text but increases file size and export time.</small>
             <label>Location label size <span class="export-preview-value" data-value-for="markerLabelSize" data-suffix=" px"></span>
               <input name="markerLabelSize" type="range" min="12" max="34" step="1" />
             </label>
