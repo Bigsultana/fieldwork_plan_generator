@@ -2,6 +2,7 @@ import "./map-view-controls.css";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 23;
+const NATIVE_BASEMAP_ZOOM = 19;
 
 function createGroup(html) {
   const group = document.createElement("div");
@@ -14,6 +15,15 @@ function zoomLabel(value) {
   return `Zoom ${Number(value).toFixed(2)}`;
 }
 
+function upgradeTileLayer(layer) {
+  if (!layer || typeof layer.getTileUrl !== "function") return;
+  layer.options.maxZoom = MAX_ZOOM;
+  if (!Number.isFinite(Number(layer.options.maxNativeZoom))) {
+    layer.options.maxNativeZoom = NATIVE_BASEMAP_ZOOM;
+  }
+  layer.redraw?.();
+}
+
 export function enhanceMapViewControls(mapPlanner) {
   const map = mapPlanner?.map;
   const tools = document.querySelector(".map-tools");
@@ -21,6 +31,8 @@ export function enhanceMapViewControls(mapPlanner) {
   tools.dataset.precisionView = "true";
 
   map.setMaxZoom(MAX_ZOOM);
+  map.eachLayer(upgradeTileLayer);
+  map.on("layeradd", (event) => upgradeTileLayer(event.layer));
   map.options.zoomSnap = 0.05;
   map.options.zoomDelta = 0.25;
   map.options.wheelPxPerZoomLevel = 120;
@@ -55,7 +67,7 @@ export function enhanceMapViewControls(mapPlanner) {
         </select>
       </label>
     </div>
-    <small class="enhancement-note">Zoom is available to level ${MAX_ZOOM}. Levels beyond the native basemap detail enlarge the best available tile, while uploaded georeferenced imagery can remain sharper where its source resolution allows.</small>`);
+    <small class="enhancement-note">Zoom is available to level ${MAX_ZOOM}. Levels beyond ${NATIVE_BASEMAP_ZOOM} enlarge the best available online tile, while uploaded georeferenced imagery can remain sharper where its source resolution allows.</small>`);
 
   const backgroundGroup = [...tools.children].find((child) => child.textContent.includes("Background"));
   if (backgroundGroup) backgroundGroup.after(group);
