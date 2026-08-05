@@ -16,7 +16,7 @@ export default defineConfig({
         );
         next = next.replace(
           'from "./presentation.js";',
-          'from "./presentation-final.js";',
+          'from "./presentation-release.js";',
         );
         if (!next.includes('from "./model-final.js";')) {
           throw new Error("Project model import was not found during the build.");
@@ -24,7 +24,7 @@ export default defineConfig({
         if (!next.includes('from "./map-planner-enhanced.js";')) {
           throw new Error("Map planner import was not found during the build.");
         }
-        if (!next.includes('from "./presentation-final.js";')) {
+        if (!next.includes('from "./presentation-release.js";')) {
           throw new Error("Presentation import was not found during the build.");
         }
         return { code: next, map: null };
