@@ -1,5 +1,9 @@
 import "./map-view-controls.css";
 
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 23;
+const NATIVE_BASEMAP_ZOOM = 19;
+
 function createGroup(html) {
   const group = document.createElement("div");
   group.className = "tool-group precision-map-controls";
@@ -11,12 +15,24 @@ function zoomLabel(value) {
   return `Zoom ${Number(value).toFixed(2)}`;
 }
 
+function upgradeTileLayer(layer) {
+  if (!layer || typeof layer.getTileUrl !== "function") return;
+  layer.options.maxZoom = MAX_ZOOM;
+  if (!Number.isFinite(Number(layer.options.maxNativeZoom))) {
+    layer.options.maxNativeZoom = NATIVE_BASEMAP_ZOOM;
+  }
+  layer.redraw?.();
+}
+
 export function enhanceMapViewControls(mapPlanner) {
   const map = mapPlanner?.map;
   const tools = document.querySelector(".map-tools");
   if (!map || !tools || tools.dataset.precisionView === "true") return mapPlanner;
   tools.dataset.precisionView = "true";
 
+  map.setMaxZoom(MAX_ZOOM);
+  map.eachLayer(upgradeTileLayer);
+  map.on("layeradd", (event) => upgradeTileLayer(event.layer));
   map.options.zoomSnap = 0.05;
   map.options.zoomDelta = 0.25;
   map.options.wheelPxPerZoomLevel = 120;
@@ -26,7 +42,7 @@ export function enhanceMapViewControls(mapPlanner) {
     <h3>Precise map framing</h3>
     <div class="precision-zoom-row">
       <button id="precision-zoom-out" type="button" title="Zoom out by 0.25">−</button>
-      <input id="precision-zoom-slider" type="range" min="1" max="20" step="0.05" value="${map.getZoom()}" />
+      <input id="precision-zoom-slider" type="range" min="${MIN_ZOOM}" max="${MAX_ZOOM}" step="0.05" value="${map.getZoom()}" />
       <output id="precision-zoom-value">${zoomLabel(map.getZoom())}</output>
     </div>
     <div class="precision-button-row">
@@ -51,7 +67,7 @@ export function enhanceMapViewControls(mapPlanner) {
         </select>
       </label>
     </div>
-    <small class="enhancement-note">Mouse-wheel and +/− zoom now use fractional steps. Use the arrows for exact positioning inside the blue A1 frame. Alt + arrow keys also nudges the map.</small>`);
+    <small class="enhancement-note">Zoom is available to level ${MAX_ZOOM}. Levels beyond ${NATIVE_BASEMAP_ZOOM} enlarge the best available online tile, while uploaded georeferenced imagery can remain sharper where its source resolution allows.</small>`);
 
   const backgroundGroup = [...tools.children].find((child) => child.textContent.includes("Background"));
   if (backgroundGroup) backgroundGroup.after(group);
@@ -62,7 +78,7 @@ export function enhanceMapViewControls(mapPlanner) {
   const nudgeStep = group.querySelector("#precision-nudge-step");
 
   function setZoom(value) {
-    const next = Math.min(20, Math.max(1, Number(value)));
+    const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(value)));
     map.setZoom(next, { animate: false });
   }
 
