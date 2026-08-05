@@ -24,7 +24,7 @@
   background: transparent;
   border: 0;
   border-radius: 0;
-  font: 800 33px/1 Arial, sans-serif;
+  font: 800 33px/1 var(--export-label-font, Arial), sans-serif;
   text-shadow:
     -1px -1px 0 rgba(255, 255, 255, 0.88),
     1px -1px 0 rgba(255, 255, 255, 0.88),
@@ -53,7 +53,10 @@
   transform: translate(calc(-50% + var(--label-x)), calc(-50% + var(--label-y)));
   color: #111827;
   background: transparent;
-  font: 800 16px/1.15 Arial, sans-serif;
+  font-family: var(--export-label-font, Arial), sans-serif;
+  font-size: var(--export-label-size, 16px);
+  font-weight: var(--export-label-weight, 800);
+  line-height: 1.15;
   letter-spacing: 0.1px;
   white-space: nowrap;
   text-shadow:
