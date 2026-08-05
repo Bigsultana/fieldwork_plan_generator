@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT } from "../src/model.js";
-import { createPresentation } from "../src/presentation-final.js";
+import { createPresentation } from "../src/presentation-release.js";
 
 const transparentPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 describe("PowerPoint generation", () => {
-  it("creates a valid zipped PPTX payload with the simplified title block", async () => {
+  it("creates a valid zipped PPTX payload with one clean title block", async () => {
     const project = {
       ...DEFAULT_PROJECT,
       projectTitle: "Test project",
@@ -19,13 +19,23 @@ describe("PowerPoint generation", () => {
       revisionDescription: "Initial issue for fieldwork",
       revisionDate: "03/08/2026",
       revisionBy: "MR",
+      exportStyle: {
+        fontFamily: "Aptos",
+        markerLabelSize: 20,
+        coordinateFontSize: 11,
+        titleBlockScale: 1.1,
+        legendFontSize: 15,
+        logoScale: 1,
+        showCoordinateInset: true,
+      },
     };
     const mapPlan = {
       image: { data: transparentPng, width: 817, height: 516 },
+      exportStyle: project.exportStyle,
       sheet: { sheetNumber: "001", drawingTitle1: "Proposed Fieldwork Plan", drawingTitle2: "Test site", drawingTitle3: "2 proposed fieldwork locations", scale: "1:1000", revision: "A" },
       points: [
-        { label: "BH1", typeName: "Borehole", latitudeText: "-27.9100000", longitudeText: "153.3120000", zone: 56, eastingText: "530,000", northingText: "6,912,000", notes: "" },
-        { label: "TP1", typeName: "Test pit", latitudeText: "-27.9110000", longitudeText: "153.3130000", zone: 56, eastingText: "530,100", northingText: "6,911,900", notes: "" },
+        { label: "BH1", type: "BH", typeName: "Borehole", latitudeText: "-27.9100000", longitudeText: "153.3120000", zone: 56, eastingText: "530,000", northingText: "6,912,000", notes: "" },
+        { label: "TP1", type: "TP", typeName: "Test pit", latitudeText: "-27.9110000", longitudeText: "153.3130000", zone: 56, eastingText: "530,100", northingText: "6,911,900", notes: "" },
       ],
     };
     const pptx = createPresentation(project, [{ sheetNumber: "002", drawingTitle1: "Site Layout", drawingTitle2: "", drawingTitle3: "", scale: "NTS", revision: "A", image: { data: transparentPng, width: 1, height: 1 } }], null, mapPlan);
