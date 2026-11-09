@@ -253,6 +253,14 @@ export function matchingSidecar(files, name, extensions) {
   return [...files].find((file) => extensions.some((extension) => file.name.toLowerCase() === `${stem}${extension}`));
 }
 
+export function dxfFaceVertices(vertices = []) {
+  const points = [...vertices];
+  // dxf-parser 1.1.2 can append an empty fifth record to 3DFACE entities.
+  // Remove only those placeholders; incomplete real coordinates still fail validation.
+  while (points.length && points.at(-1) && Object.keys(points.at(-1)).length === 0) points.pop();
+  return points;
+}
+
 export function geoTiffTransform(directory) {
   const value = (name) => directory.getValue ? directory.getValue(name) : directory[name];
   const m = value("ModelTransformation");

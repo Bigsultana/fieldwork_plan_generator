@@ -1,5 +1,6 @@
 import parseDxf, { DxfParser } from "dxf-parser";
 import { matchingPrjFile, resolveSourceProjection, toWgs84 } from "./projection-utils.js";
+import { dxfFaceVertices } from "./model.js";
 
 const TAU = Math.PI * 2;
 
@@ -65,7 +66,8 @@ function sampleArc(center, radius, startAngle, endAngle, segments = 48) {
 
 function sourcePolyline(entity) {
   const type = String(entity.type || "").toUpperCase();
-  if (["LINE", "LWPOLYLINE", "POLYLINE", "SPLINE", "SOLID", "3DFACE"].includes(type)) {
+  if (type === "3DFACE") return dxfFaceVertices(entity.vertices);
+  if (["LINE", "LWPOLYLINE", "POLYLINE", "SPLINE", "SOLID"].includes(type)) {
     return entity.vertices || entity.controlPoints || entity.fitPoints || [];
   }
   if (type === "CIRCLE") return sampleArc(entity.center, entity.radius, 0, TAU, 64);

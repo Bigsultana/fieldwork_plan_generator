@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed survey DXF imports failing on empty trailing 3DFACE vertices emitted by the DXF parser; valid face coordinates and other drawing entities are preserved.
+
 ## 2.3.0 - 2026-11-09
 
 - Added a map-first workspace with a toolbar, Contents layer list, Properties inspector and separate project, supporting-sheet and export tabs.
