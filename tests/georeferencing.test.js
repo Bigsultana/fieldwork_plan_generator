@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAffine, invertAffine, fitReferencePoints, worldToPixelTransform } from "../src/georeferencing.js";
+import { applyAffine, invertAffine, fitReferencePoints, worldToPixelTransform } from "../src/model.js";
 import { geoTiffTransform, matchingSidecar, rasterPlacement } from "../src/plan-import.js";
 
 describe("manual image alignment", () => {

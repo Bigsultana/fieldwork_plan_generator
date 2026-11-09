@@ -2,7 +2,7 @@ import L from "leaflet";
 import proj4 from "proj4";
 import { readDxfOverlay } from "./dxf-overlay.js";
 import { readPlanImage, matchingSidecar, rasterPlacement } from "./plan-import.js";
-import { applyAffine, invertAffine, fitReferencePoints, imageCorners } from "./georeferencing.js";
+import { applyAffine, invertAffine, fitReferencePoints, imageCorners } from "./model.js";
 import { createPlanRasterLayer } from "./plan-raster-layer.js";
 import "./map-workspace.css";
 
