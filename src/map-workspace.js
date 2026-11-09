@@ -2,8 +2,11 @@ import L from "leaflet";
 import proj4 from "proj4";
 import { readDxfOverlay } from "./dxf-overlay.js";
 import { readPlanImage, matchingSidecar, rasterPlacement } from "./plan-import.js";
-import { applyAffine, invertAffine, fitReferencePoints, imageCorners } from "./model.js";
+import { applyAffine, invertAffine, fitReferencePoints, imageCorners, reorderLayerStack, rasterCropBounds } from "./model.js";
 import { createPlanRasterLayer } from "./plan-raster-layer.js";
+import { detectVisiblePixelBounds } from "./world-file-overlay.js";
+import { workspaceElement as node, workspaceButton as button, workspaceMenu, workspaceDialog } from "./workspace-controls.js";
+import { installWorkspaceMapTools } from "./workspace-map-tools.js";
 import "./map-workspace.css";
 
 const CRS_OPTIONS = `<option value="auto">Detect / matching PRJ</option>
@@ -11,17 +14,6 @@ const CRS_OPTIONS = `<option value="auto">Detect / matching PRJ</option>
   <option value="EPSG:28356">GDA94 / MGA 56</option><option value="EPSG:28355">GDA94 / MGA 55</option>
   <option value="EPSG:4326">WGS84 longitude / latitude</option><option value="EPSG:3857">Web Mercator</option>`;
 
-function node(tag, className, text) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text !== undefined) el.textContent = text;
-  return el;
-}
-function button(text, action, title = text) {
-  const el = node("button", "button secondary", text);
-  el.type = "button"; el.title = title; el.addEventListener("click", action);
-  return el;
-}
 function ll([x, y]) { return L.CRS.EPSG3857.unproject(L.point(x, y)); }
 
 export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
@@ -67,13 +59,13 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   const palette = document.querySelector(".point-palette");
   ribbon.append(palette);
   const fitAll = button("Fit plans", () => {
-    const corners = entries.filter((e) => e.visible && e.placement).flatMap((e) => e.placement.corners);
+    const corners = entries.filter((e) => e.visible && e.placement).flatMap(layerCorners);
     if (corners.length) fitCorners(corners);
   });
   ribbon.append(fitAll);
   const zoomLabel = node("label", "workspace-zoom", "Zoom");
   const zoom = node("input"); zoom.type = "number"; zoom.min = "1"; zoom.max = "26"; zoom.step = "0.25";
-  zoom.id = "workspace-zoom"; zoom.value = String(map.getZoom());
+  zoom.id = "workspace-zoom"; zoom.step = "0.05"; zoom.value = String(map.getZoom());
   zoom.addEventListener("change", () => {
     const value = Number(zoom.value);
     if (Number.isFinite(value)) map.setZoom(Math.max(1, Math.min(26, value)), { animate: false });
@@ -89,29 +81,42 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   ribbon.append(frameButton);
   panel.insertBefore(ribbon, layout);
 
+  const locations = workspaceMenu("Locations");
+  const coordinateDialog = workspaceDialog("Import fieldwork coordinates", panel);
+  const coordinateGroup = oldTools.querySelector(".coordinate-import-group");
+  coordinateGroup.querySelector("h3")?.remove();
+  coordinateDialog.content.append(coordinateGroup);
+  locations.content.append(button("Import coordinates…", coordinateDialog.open));
+  for (const id of ["undo-point", "fit-points", "clear-points"]) locations.content.append(document.querySelector(`#${id}`));
+  ribbon.append(locations.element);
+  const gis = workspaceMenu("GIS export");
+  for (const id of ["export-kml", "export-kmz", "export-coordinate-csv"]) gis.content.append(document.querySelector(`#${id}`));
+  ribbon.append(gis.element);
+  installWorkspaceMapTools(planner, { ribbon, setStatus });
+
   const left = node("aside", "workspace-layers");
   left.append(node("h2", "", "Contents"));
+  const layerActions = node("div", "workspace-layer-actions");
+  const layerUp = button("↑ Up", () => { if (selected) moveEntry(selected, 1); }, "Move selected layer up");
+  const layerDown = button("↓ Down", () => { if (selected) moveEntry(selected, -1); }, "Move selected layer down");
+  const layerDelete = button("Delete", () => { if (selected) deleteEntry(selected); }, "Delete selected layer");
+  layerActions.append(layerUp, layerDown, layerDelete); left.append(layerActions);
+  left.append(node("p", "workspace-layer-hint", "Drag to reorder · top layer draws on top"));
   const list = node("div", "workspace-layer-list");
   list.id = "workspace-layer-list";
   left.append(list);
   const empty = node("p", "workspace-help", "Drop JPG, PNG, TIFF or DXF files onto the map. Include matching world/PRJ files when available.");
   left.append(empty);
-  const baseControls = node("div", "workspace-base-controls");
-  // Keep original controls and their event handlers for basemaps, points and grid.
-  for (const id of ["basemap-mode", "layer-points", "layer-basemap", "layer-mga-grid"]) {
-    const control = document.querySelector(`#${id}`);
-    const label = control?.closest("label");
-    if (label) baseControls.append(label);
-  }
-  left.append(baseControls);
-  const right = node("aside", "workspace-inspector");
-  right.append(node("h2", "", "Properties"));
   const properties = node("div", "workspace-properties");
-  right.append(properties);
-  const advanced = node("details", "workspace-advanced");
-  advanced.append(node("summary", "", "More tools"), oldTools);
-  right.append(advanced);
-  layout.prepend(left); layout.append(right);
+  properties.setAttribute("aria-label", "Selected layer controls");
+  properties.setAttribute("role", "region");
+  panel.insertBefore(properties, layout);
+  layout.prepend(left);
+  const qaGroup = [...oldTools.querySelectorAll(".tool-group")].find((group) => group.querySelector("h3")?.textContent === "Drawing QA");
+  const checks = node("details", "workspace-drawing-checks");
+  checks.append(node("summary", "", "Drawing checks"), qaGroup);
+  panel.append(checks);
+  oldTools.remove();
   const status = node("p", "workspace-notice", "Ready. Find a site or drop a plan onto the map.");
   status.id = "workspace-notice"; status.setAttribute("role", "status");
   panel.insertBefore(status, ribbon);
@@ -141,7 +146,12 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     <div class="reference-coordinates"><label>Easting / longitude<input id="reference-x" type="number" step="any"></label><label>Northing / latitude<input id="reference-y" type="number" step="any"></label></div>
     <button id="reference-add-known" type="button" class="button secondary">Add known coordinate</button>
     <ol id="reference-points"></ol><p id="reference-quality" role="status"></p><div class="reference-footer"></div>`;
-  right.insertBefore(refPanel, advanced);
+  const sourceColumn = node("div", "reference-source");
+  sourceColumn.append(refPanel.querySelector("h3"), refPanel.querySelector(".workspace-help"), refPanel.querySelector("#reference-image"), refPanel.querySelector(".reference-actions"));
+  const targetColumn = node("div", "reference-target");
+  targetColumn.append(...refPanel.children);
+  refPanel.replaceChildren(sourceColumn, targetColumn);
+  layout.insertBefore(refPanel, layout.querySelector(".map-stage"));
   const refInstruction = refPanel.querySelector("#reference-instruction");
   const refQuality = refPanel.querySelector("#reference-quality");
   const refList = refPanel.querySelector("#reference-points");
@@ -149,6 +159,13 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   function fitCorners(corners) {
     const bounds = L.latLngBounds(corners.map(ll));
     planner.fitBoundsToA1Frame?.(bounds, { maxZoom: 26, animate: false });
+  }
+  function layerCorners(entry) {
+    if (entry.kind === "raster" && entry.cropBounds && entry.placement) {
+      const { left, top, right, bottom } = entry.cropBounds;
+      return [[left,top],[right,top],[right,bottom],[left,bottom]].map(entry.placement.toMercator);
+    }
+    return entry.placement?.corners || [];
   }
   function updateOrder() {
     entries.forEach((entry, index) => { if (entry.pane) map.getPane(entry.pane).style.zIndex = String(260 + index); });
@@ -167,6 +184,29 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     list.replaceChildren();
     [...entries].reverse().forEach((entry) => {
       const row = node("div", `workspace-layer-row${entry === selected ? " selected" : ""}`);
+      row.dataset.layerId = entry.id;
+      row.draggable = true;
+      row.addEventListener("dragstart", (event) => {
+        event.dataTransfer.setData("application/x-fieldwork-layer", entry.id);
+        event.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragover", (event) => {
+        if (!event.dataTransfer.types.includes("application/x-fieldwork-layer")) return;
+        event.preventDefault();
+        row.classList.toggle("drop-below", event.clientY > row.getBoundingClientRect().top + row.clientHeight / 2);
+        row.classList.add("layer-drop-target");
+      });
+      row.addEventListener("dragleave", () => row.classList.remove("layer-drop-target", "drop-below"));
+      row.addEventListener("dragend", () => list.querySelectorAll(".layer-drop-target").forEach((el) => el.classList.remove("layer-drop-target", "drop-below")));
+      row.addEventListener("drop", (event) => {
+        const movingId = event.dataTransfer.getData("application/x-fieldwork-layer");
+        if (!movingId) return;
+        event.preventDefault();
+        const after = event.clientY > row.getBoundingClientRect().top + row.clientHeight / 2;
+        const next = reorderLayerStack([...entries].reverse(), movingId, entry.id, after).reverse();
+        entries.splice(0, entries.length, ...next);
+        updateOrder(); renderList(); renderProperties();
+      });
       const visible = node("input"); visible.type = "checkbox"; visible.checked = entry.visible;
       visible.setAttribute("aria-label", `Show ${entry.name}`);
       visible.addEventListener("change", () => {
@@ -175,19 +215,28 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       });
       const select = button(entry.name, () => selectEntry(entry));
       select.className = "workspace-layer-name";
+      select.setAttribute("aria-pressed", String(selected === entry));
+      select.addEventListener("dblclick", () => { if (entry.placement) fitCorners(layerCorners(entry)); });
       const state = node("small", "", entry.placement ? (entry.kind === "dxf" ? "DXF" : "Image") : "Needs placement");
       const label = node("div"); label.append(select, state);
-      row.append(visible, label); list.append(row);
+      const remove = button("×", () => deleteEntry(entry), `Delete ${entry.name}`);
+      remove.setAttribute("aria-label", `Delete ${entry.name}`);
+      remove.className = "workspace-layer-delete";
+      row.append(visible, label, remove); list.append(row);
     });
     empty.hidden = entries.length > 0;
+    layerUp.disabled = !selected || entries.indexOf(selected) === entries.length - 1;
+    layerDown.disabled = !selected || entries.indexOf(selected) === 0;
+    layerDelete.disabled = !selected;
   }
   function selectEntry(entry) {
     if (session && session.entry !== entry) cancelReference();
     selected = entry; renderList(); renderProperties();
+    [...list.children].find((row) => row.dataset.layerId === entry.id)?.querySelector(".workspace-layer-name")?.focus({ preventScroll: true });
   }
   function renderProperties() {
     properties.replaceChildren();
-    if (!selected) { properties.append(node("p", "workspace-help", "Select a plan layer to inspect or georeference it.")); return; }
+    if (!selected) { properties.append(node("p", "workspace-help", "Select a layer to edit it. Drag layers in Contents to change drawing order.")); return; }
     const entry = selected;
     properties.append(node("h3", "workspace-filename", entry.name));
     properties.append(node("p", "workspace-help", entry.kind === "dxf" ? (entry.summary || "Select the coordinate system used by the DXF.") : `${entry.width.toLocaleString()} × ${entry.height.toLocaleString()} pixels · original resolution`));
@@ -224,9 +273,13 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
           const label = layer.getElement?.()?.querySelector(".workspace-dxf-label"); if (label) label.style.color = entry.color; });
       });
       colorLabel.append(color); properties.append(colorLabel);
+      const weightLabel = node("label", "", "Line width");
+      const weight = node("input"); weight.type = "range"; weight.min = ".5"; weight.max = "6"; weight.step = ".5"; weight.value = entry.weight;
+      weight.addEventListener("input", () => { entry.weight = Number(weight.value); entry.layer?.eachLayer((layer) => layer.setStyle?.({ weight: entry.weight })); });
+      weightLabel.append(weight); properties.append(weightLabel);
     }
     const actions = node("div", "workspace-property-actions");
-    if (entry.placement) actions.append(button("Zoom to layer", () => fitCorners(entry.placement.corners)));
+    if (entry.placement) actions.append(button("Zoom to layer", () => fitCorners(layerCorners(entry))));
     if (entry.kind === "raster") {
       if (entry.placement) {
         const locked = node("label", "inline-check"); const check = node("input");
@@ -237,25 +290,69 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       const georef = button("Georeference image", () => startReference(entry));
       georef.disabled = Boolean(entry.placement && entry.locked) || Boolean(session);
       actions.append(georef);
+      const crop = button("Crop image…", () => openCrop(entry));
+      crop.disabled = Boolean(session);
+      actions.append(crop);
     }
-    const up = button("↑", () => moveEntry(entry, 1), "Move layer up");
-    const down = button("↓", () => moveEntry(entry, -1), "Move layer down");
-    up.disabled = entries.indexOf(entry) === entries.length - 1;
-    down.disabled = entries.indexOf(entry) === 0;
-    actions.append(up, down, button("Remove", () => {
-      if (session?.entry === entry) cancelReference();
-      removeLayer(entry); map.getPane(entry.pane).remove();
-      entries.splice(entries.indexOf(entry), 1);
-      selected = entries.at(-1) || null; updateOrder(); renderList(); renderProperties();
-      notice(`${entry.name} removed.`);
-    }));
     properties.append(actions);
   }
+  function deleteEntry(entry) {
+    if (session?.entry === entry) cancelReference();
+    removeLayer(entry); map.getPane(entry.pane).remove();
+    entries.splice(entries.indexOf(entry), 1);
+    if (selected === entry) selected = entries.at(-1) || null;
+    updateOrder(); renderList(); renderProperties();
+    if (selected) [...list.children].find((row) => row.dataset.layerId === selected.id)?.querySelector(".workspace-layer-name")?.focus({ preventScroll: true });
+    notice(`${entry.name} removed.`);
+  }
+  left.addEventListener("keydown", (event) => {
+    if (event.key === "Delete" && selected && !event.target.closest("input,textarea,select,[contenteditable=true]")) {
+      event.preventDefault(); deleteEntry(selected);
+    }
+  });
   function moveEntry(entry, direction) {
     const index = entries.indexOf(entry), next = index + direction;
     if (next < 0 || next >= entries.length) return;
     [entries[index], entries[next]] = [entries[next], entries[index]];
     updateOrder(); renderList(); renderProperties();
+  }
+  function openCrop(entry) {
+    const tool = workspaceDialog(`Crop ${entry.name}`, panel);
+    tool.content.innerHTML = `<p class="workspace-help">Hide margins without changing the image's map position or original resolution.</p>
+      <label class="inline-check"><input id="crop-auto-trim" type="checkbox"> Trim white or transparent borders</label>
+      <div class="workspace-crop-fields">${["left","top","right","bottom"].map((side) => `<label>${side[0].toUpperCase() + side.slice(1)} %<input data-crop-side="${side}" type="number" min="0" max="45" step="0.5" value="${entry.cropSettings?.[side] || 0}"></label>`).join("")}</div>
+      <p class="workspace-crop-status" role="status"></p><div class="workspace-crop-actions"></div>`;
+    tool.content.querySelector("#crop-auto-trim").checked = Boolean(entry.cropSettings?.autoTrim);
+    const feedback = tool.content.querySelector(".workspace-crop-status");
+    const actions = tool.content.querySelector(".workspace-crop-actions");
+    actions.append(button("Reset crop", () => {
+      entry.cropBounds = null; entry.cropSettings = null;
+      if (entry.placement) { showRaster(entry, entry.placement); fitCorners(layerCorners(entry)); }
+      tool.element.close(); notice(`${entry.name}: full image restored.`);
+    }), button("Apply crop", () => {
+      try {
+        const settings = Object.fromEntries([...tool.content.querySelectorAll("[data-crop-side]")].map((input) => [input.dataset.cropSide, Number(input.value)]));
+        settings.autoTrim = tool.content.querySelector("#crop-auto-trim").checked;
+        let detected = null;
+        if (settings.autoTrim) {
+          const scale = Math.min(1, 1600 / Math.max(entry.width, entry.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(entry.width * scale));
+          canvas.height = Math.max(1, Math.round(entry.height * scale));
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          context.drawImage(entry.image, 0, 0, canvas.width, canvas.height);
+          const pixels = detectVisiblePixelBounds(context.getImageData(0,0,canvas.width,canvas.height), canvas.width, canvas.height, { margin: 2 });
+          detected = { left: Math.floor(pixels.left * entry.width / canvas.width), top: Math.floor(pixels.top * entry.height / canvas.height),
+            right: Math.ceil(pixels.right * entry.width / canvas.width), bottom: Math.ceil(pixels.bottom * entry.height / canvas.height) };
+        }
+        entry.cropBounds = rasterCropBounds(entry.width, entry.height, settings, detected);
+        entry.cropSettings = settings;
+        if (entry.placement) { showRaster(entry, entry.placement); fitCorners(layerCorners(entry)); }
+        tool.element.close(); notice(`${entry.name}: crop applied.`);
+      } catch (error) { feedback.textContent = error.message; }
+    }));
+    tool.element.addEventListener("close", () => tool.element.remove(), { once: true });
+    tool.open();
   }
   async function placeEntry(entry) {
     const sourceCrs = entry.selectedCrs !== "auto" ? entry.selectedCrs : entry.detectedCrs;
@@ -268,7 +365,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
         throw new Error("The DXF coordinates fall outside the map. Check its source CRS.");
       }
       const group = L.layerGroup();
-      const style = { color: entry.color, weight: 1.5, pane: entry.pane, interactive: false, fill: false };
+      const style = { color: entry.color, weight: entry.weight, pane: entry.pane, interactive: false, fill: false };
       parsed.features.forEach((feature) => {
         if (feature.kind === "point") L.circleMarker([feature.coordinate[1], feature.coordinate[0]], { ...style, radius: 3 }).addTo(group);
         else L.polyline(feature.coordinates.map(([x, y]) => [y, x]), style).addTo(group);
@@ -286,7 +383,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       entry.summary = `${parsed.features.length} geometry items · ${parsed.labels.length} labels${parsed.skippedCount ? ` · ${parsed.skippedCount} unsupported entities skipped` : ""}`;
     }
     entry.locked = true;
-    fitCorners(entry.placement.corners);
+    fitCorners(layerCorners(entry));
     notice(`${entry.name} placed.${entry.summary ? ` ${entry.summary}` : ""}`);
   }
 
@@ -301,14 +398,14 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       try {
         const id = crypto.randomUUID();
         const entry = { id, name: file.name, kind: /\.dxf$/i.test(file.name) ? "dxf" : "raster",
-          files: all, visible: true, opacity: 1, color: "#e11d48", selectedCrs: "auto", locked: false, pane: `plan-${id}` };
+          files: [file, ...all.filter((candidate) => /\.prj$/i.test(candidate.name))], visible: true, opacity: 1, color: "#e11d48", weight: 1.5, selectedCrs: "auto", locked: false, pane: `plan-${id}` };
         if (entry.kind === "raster") Object.assign(entry, await readPlanImage(file, all));
         else { const prj = matchingSidecar(all, file.name, [".prj"]); if (prj) entry.detectedCrs = await prj.text(); }
         const pane = map.createPane(entry.pane); pane.style.pointerEvents = "none";
         entries.push(entry); updateOrder();
         if (entry.detectedCrs && (entry.kind === "dxf" || entry.nativeTransform)) {
           try { await placeEntry(entry); } catch (error) { notice(`${entry.name}: ${error.message}`, true); }
-        } else notice(`${entry.name} loaded. ${entry.nativeTransform || entry.kind === "dxf" ? "Select its source CRS in Properties." : "Select Georeference image to align it."}`);
+        } else notice(`${entry.name} loaded. ${entry.nativeTransform || entry.kind === "dxf" ? "Choose its source CRS in the layer toolbar above the map." : "Select Georeference image to align it."}`);
         selectEntry(entry);
       } catch (error) { notice(`${file.name}: ${error.message}`, true); }
       await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -353,6 +450,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     if (entry.layer && !map.hasLayer(entry.layer)) entry.layer.addTo(map);
     renderList();
     refPanel.hidden = false;
+    layout.classList.add("workspace-georeferencing");
     if (!sourceMap) {
       sourceMap = L.map(refPanel.querySelector("#reference-image"), { crs: L.CRS.Simple, minZoom: -10, maxZoom: 5, attributionControl: false });
       referenceMarkers.addTo(sourceMap);
@@ -375,6 +473,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   function cancelReference() {
     if (!session) return;
     restorePreview(); session = null; refPanel.hidden = true; referenceMarkers.clearLayers(); targetMarkers.clearLayers();
+    layout.classList.remove("workspace-georeferencing");
     renderList(); renderProperties();
     notice("Manual alignment cancelled; the previous alignment was restored.");
   }
@@ -398,7 +497,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       const placement = { toMercator: (p) => applyAffine(fit.transform, p), toPixel: (p) => applyAffine(inverse, p),
         corners: imageCorners(session.entry.width, session.entry.height).map((p) => applyAffine(fit.transform, p)), sourceCrs: "Manual reference points" };
       showRaster(session.entry, placement); session.preview = placement;
-      fitCorners(placement.corners);
+      fitCorners(layerCorners(session.entry));
       const latitude = ll(placement.corners[0]).lat;
       const groundRms = fit.rms * Math.cos(latitude * Math.PI / 180);
       refQuality.textContent = `${session.controls.length} points · fit RMS ≈ ${groundRms.toFixed(3)} m. ${session.controls.length === 3 ? "Three points fit exactly; add more to assess alignment error." : "Fit residuals measure agreement with your reference points, not survey accuracy."}`;
@@ -408,6 +507,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     if (!session?.preview) return notice("Preview the alignment before applying it.", true);
     const entry = session.entry; entry.controls = session.controls; entry.locked = true;
     session = null; refPanel.hidden = true; referenceMarkers.clearLayers(); targetMarkers.clearLayers();
+    layout.classList.remove("workspace-georeferencing");
     renderList(); renderProperties(); notice(`${entry.name}: manual alignment applied and locked.`);
   }), button("Cancel", cancelReference));
   // Capture before Leaflet's event handlers: reference clicks must never place
@@ -442,15 +542,15 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     });
     await Promise.all(loading);
     const plan = await originalCapture();
-    if (plan) plan.planLayers = entries.filter((e) => e.visible && e.placement).map((e) => ({ name: e.name, sourceCrs: e.placement.sourceCrs, opacity: e.opacity }));
+    if (plan) {
+      plan.planLayers = entries.filter((e) => e.visible && e.placement).map((e) => ({ name: e.name, sourceCrs: e.placement.sourceCrs, opacity: e.opacity }));
+      plan.layerSummary = planner.getLayerState();
+      plan.qaWarnings = planner.getQaWarnings();
+    }
     return plan;
   };
   const originalHasContent = planner.hasContent.bind(planner);
   planner.hasContent = () => originalHasContent() || entries.some((e) => e.visible && e.placement);
-  const originalQa = planner.getQaWarnings?.bind(planner) || (() => []);
-  planner.getQaWarnings = () => originalQa().filter((warning) =>
-    warning !== "No online or uploaded aerial background is visible." || !entries.some((e) => e.kind === "raster" && e.visible && e.placement),
-  );
   renderList(); renderProperties();
   return planner;
 }

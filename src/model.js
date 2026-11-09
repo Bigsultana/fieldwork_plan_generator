@@ -261,6 +261,53 @@ export function dxfFaceVertices(vertices = []) {
   return points;
 }
 
+// Contents order is top to bottom. Move relative to the target after removal,
+// so dragging from either direction preserves the other layers' order.
+export function reorderLayerStack(layers, movingId, targetId, after = false) {
+  if (movingId === targetId) return [...layers];
+  const moving = layers.find((layer) => layer.id === movingId);
+  if (!moving || !layers.some((layer) => layer.id === targetId)) return [...layers];
+  const result = layers.filter((layer) => layer.id !== movingId);
+  const index = result.findIndex((layer) => layer.id === targetId) + (after ? 1 : 0);
+  result.splice(index, 0, moving);
+  return result;
+}
+
+export function importedMapLocations(locations, definitions) {
+  return locations.map((location) => {
+    const definition = definitions[location.type];
+    const longitude = Number(location.longitude), latitude = Number(location.latitude);
+    if (!definition) throw new Error(`Unsupported fieldwork type '${location.type}'.`);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) throw new Error("Imported locations must have valid latitude and longitude.");
+    return { id: globalThis.crypto.randomUUID(), type: location.type, longitude, latitude,
+      customLabel: String(location.customLabel || "").trim(), notes: String(location.notes || ""), locked: false,
+      symbol: definition.symbol, color: definition.color };
+  });
+}
+
+export function rasterCropBounds(width, height, crop = {}, detected = null) {
+  const bounds = detected || { left: 0, top: 0, right: width, bottom: height };
+  const percent = (side) => {
+    const value = Number(crop[side] || 0);
+    if (!Number.isFinite(value) || value < 0 || value > 45) throw new Error("Crop percentages must be between 0 and 45.");
+    return value / 100;
+  };
+  const w = bounds.right - bounds.left, h = bounds.bottom - bounds.top;
+  const left = Math.round(bounds.left + w * percent("left"));
+  const top = Math.round(bounds.top + h * percent("top"));
+  const right = Math.round(bounds.right - w * percent("right"));
+  const bottom = Math.round(bounds.bottom - h * percent("bottom"));
+  if (right - left < 2 || bottom - top < 2) throw new Error("The crop removes the whole image. Reduce the crop percentages.");
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+export function frameFitPadding(mapRect, frameRect, buffer = 18) {
+  return {
+    paddingTopLeft: [Math.max(buffer, frameRect.left - mapRect.left + buffer), Math.max(buffer, frameRect.top - mapRect.top + buffer)],
+    paddingBottomRight: [Math.max(buffer, mapRect.right - frameRect.right + buffer), Math.max(buffer, mapRect.bottom - frameRect.bottom + buffer)],
+  };
+}
+
 export function geoTiffTransform(directory) {
   const value = (name) => directory.getValue ? directory.getValue(name) : directory[name];
   const m = value("ModelTransformation");

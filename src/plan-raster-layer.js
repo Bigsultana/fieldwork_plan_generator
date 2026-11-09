@@ -33,7 +33,10 @@ export function createPlanRasterLayer(entry, placement, pane) {
         context.moveTo(...t0); context.lineTo(...t1); context.lineTo(...t2); context.closePath();
         context.clip();
         context.setTransform(a, b, c, d, t0[0] - a * s0[0] - c * s0[1], t0[1] - b * s0[0] - d * s0[1]);
-        context.drawImage(entry.image, 0, 0);
+        if (entry.cropBounds) {
+          const { left, top, width, height } = entry.cropBounds;
+          context.drawImage(entry.image, left, top, width, height, left, top, width, height);
+        } else context.drawImage(entry.image, 0, 0);
         context.restore();
       }
       // Reproject a mesh rather than stretching a geographic bounding box.

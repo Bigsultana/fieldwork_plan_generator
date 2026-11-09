@@ -2,7 +2,7 @@
 
 Fieldwork Plan Generator is a privacy-first browser application for planning field investigations and producing formatted A1 landscape PowerPoint fieldwork plans.
 
-**Version:** 2.3.0<br>
+**Version:** 2.4.0<br>
 **Runtime:** Cloudflare Worker + static browser application  
 **Owner:** Matthew Raison
 
@@ -12,11 +12,12 @@ Fieldwork Plan Generator is a privacy-first browser application for planning fie
 
 - Open **Map workspace** to find a site by address or latitude/longitude. Use the toolbar to place fieldwork points or change zoom.
 - Select **Add plans**, or drop JPG, PNG, TIFF and DXF files onto the map. Multiple files become separate layers. Include matching world files (`.jgw`, `.pgw`, `.tfw`, `.wld`, etc.) and `.prj` files in the same selection when available.
-- Select a layer in **Contents** to change its opacity, visibility or stacking order, or zoom to it. Choose a source CRS for DXF/world-file images when no matching PRJ is supplied. GeoTIFF metadata is detected automatically when supported.
+- Select a layer in **Contents** to edit it in the toolbar above the map. Drag rows to reorder layers, or use **Up** and **Down**. Top layers draw on top. Use a row's **×**, the **Delete** button or the Delete key while focused in Contents to remove a layer. Choose a source CRS for DXF/world-file images when no matching PRJ is supplied. GeoTIFF metadata is detected automatically when supported.
 - For an unreferenced image, select **Georeference image**. Zoom/pan the source-image picker, click a detail, then click the matching main-map location or enter its known coordinates. WGS84 inputs use longitude then latitude; site search continues to accept latitude, longitude.
 - Use at least three non-collinear points spread across the image, then **Preview alignment** and **Apply**. Four or more points provide redundant observations for the displayed fit RMS. The RMS measures agreement with selected controls, not absolute survey accuracy. **Cancel** restores the previous alignment. Applied alignments are locked; uncheck **Lock alignment** to edit.
 - Uploaded raster layers use the original image resolution and render visible tiles up to zoom 26. Background tiles are enlarged beyond their native zoom; zoom cannot add source detail. Browser memory still limits very large images.
-- Existing precision, crop, grid, coordinate-import and GIS export controls remain under **More tools**. The coordinate register expands below the map. Project information, supporting sheets and PowerPoint export have their own tabs.
+- The right sidebar and duplicate import/zoom controls have been removed. Use **Locations** for coordinate import, undo/fit/clear locations; **View** for location visibility, MGA grid settings and map nudging; and **GIS export** for KML/KMZ/CSV. The coordinate schedule and drawing checks expand below the map.
+- **Crop image** trims white/transparent margins or selected edge percentages while preserving the original pixels and map positioning. Reset crop restores the full image. Manual georeferencing opens a temporary source-image workspace beside the map. Project information, supporting sheets and PowerPoint export have their own tabs.
 - Visible unplaced layers and unfinished georeferencing must be resolved or hidden before a mapped PowerPoint can be exported. Plans remain in browser memory for the current session.
 
 ### Interactive map planning
@@ -123,7 +124,7 @@ sheet_number,drawing_title_1,drawing_title_2,drawing_title_3,scale,revision
 - Uploaded engineering drawings and GeoTIFF contents remain in browser memory.
 - Up to 60 supporting images can be held in one browser session.
 - Large GeoTIFFs and source images can use significant browser memory.
-- The main workspace preserves original raster resolution; the older GeoTIFF/cropping tools under More tools use reduced-resolution previews where necessary.
+- The workspace preserves original raster resolution; automatic margin detection uses a reduced preview, while rendering and cropping retain the original image pixels.
 - Project defaults saved in the browser use local storage on the current device.
 - No application database or file-upload API is used.
 

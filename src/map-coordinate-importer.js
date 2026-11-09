@@ -40,10 +40,6 @@ function createGroup() {
   return group;
 }
 
-function nextFrame() {
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-}
-
 function downloadText(text, filename) {
   const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -65,29 +61,6 @@ function fitImportedPoints(map, points) {
   if (!points.length) return;
   const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude]));
   map.fitBounds(bounds, { padding: [70, 70], maxZoom: 19, animate: true });
-}
-
-async function applyPointMetadata(mapPlanner, point) {
-  const layers = mapPlanner.getPointLayer?.().getLayers?.() || [];
-  const marker = layers.at(-1);
-  if (!marker || !point.customLabel) return;
-  marker.fire("click");
-  await nextFrame();
-  const form = document.querySelector(".leaflet-popup-pane .fieldwork-point-editor");
-  if (!form) throw new Error("The imported point editor could not be opened.");
-  const labelInput = form.elements.namedItem("customLabel");
-  if (labelInput) labelInput.value = point.customLabel;
-  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await nextFrame();
-}
-
-async function addPreparedPoint(mapPlanner, point) {
-  const button = document.querySelector(`[data-point-type="${point.type}"]`);
-  if (!button) throw new Error(`Point type ${point.type} is not available.`);
-  button.click();
-  mapPlanner.map.fire("click", { latlng: L.latLng(point.latitude, point.longitude) });
-  await nextFrame();
-  await applyPointMetadata(mapPlanner, point);
 }
 
 export function enhanceCoordinateImport(mapPlanner, { setStatus = () => {} } = {}) {
@@ -194,13 +167,9 @@ export function enhanceCoordinateImport(mapPlanner, { setStatus = () => {} } = {
     }
     if (!result.points.length) return;
     importButton.disabled = true;
-    if (replaceExisting.checked) document.querySelector("#clear-points")?.click();
     setStatus(`Importing ${result.points.length} coordinate locations…`);
     try {
-      for (let index = 0; index < result.points.length; index += 1) {
-        await addPreparedPoint(mapPlanner, result.points[index]);
-        setSummary(summary, `Importing location ${index + 1} of ${result.points.length}…`);
-      }
+      mapPlanner.addImportedPoints(result.points, { replace: replaceExisting.checked });
       document.querySelector("#map-pan-mode")?.click();
       fitImportedPoints(mapPlanner.map, result.points);
       const issueText = result.errors.length || result.warnings.length

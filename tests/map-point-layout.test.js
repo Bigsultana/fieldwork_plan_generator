@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { assignLabelOffsets, evaluateMapQa } from "../src/map-point-layout.js";
 
 describe("marker label layout", () => {
+  it("keeps label choices unchanged when the map pans", () => {
+    const points = [{ id: "1", label: "BH1", x: 100, y: 100 }, { id: "2", label: "TP1", x: 105, y: 105 }];
+    const before = assignLabelOffsets(points, (p) => ({ x: p.x, y: p.y }));
+    const after = assignLabelOffsets(points, (p) => ({ x: p.x + 237, y: p.y - 120 }));
+    expect(after).toEqual(before);
+  });
   it("moves nearby labels onto different candidate offsets", () => {
     const points = [
       { id: "1", label: "BH1" },
