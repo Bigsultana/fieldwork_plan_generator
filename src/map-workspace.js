@@ -187,6 +187,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       const row = node("div", `workspace-layer-row${entry === selected ? " selected" : ""}`);
       row.dataset.layerId = entry.id;
       row.draggable = true;
+      row.addEventListener("pointerdown", (event) => { row.draggable = !event.target.closest(".dxf-tree"); });
       row.addEventListener("dragstart", (event) => {
         if (event.target.closest(".dxf-tree")) { event.preventDefault(); return; }
         event.dataTransfer.setData("application/x-fieldwork-layer", entry.id);

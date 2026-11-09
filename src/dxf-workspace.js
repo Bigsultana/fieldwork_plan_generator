@@ -121,6 +121,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     tree.addEventListener("dragstart", (event) => { event.preventDefault(); event.stopPropagation(); });
     const search = node("input", "dxf-search"); search.type = "search"; search.placeholder = "Find layer, text or entity…";
     search.setAttribute("aria-label", `Find parts in ${entry.name}`); search.value = ui.query;
+    search.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
     const content = node("div", "dxf-tree-content");
     tree.append(search, content);
     function draw() {
