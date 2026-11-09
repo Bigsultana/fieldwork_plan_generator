@@ -114,9 +114,11 @@ export function parseDxfText(text, sourceProjection) {
     return transformed;
   };
 
-  const visit = (entity, matrix = identity(), depth = 0) => {
+  const visit = (entity, matrix = identity(), depth = 0, path = "", inheritedLayer = "0") => {
     if (!entity || depth > 8) return;
     const type = String(entity.type || "").toUpperCase();
+    const layer = !entity.layer || entity.layer === "0" ? inheritedLayer : entity.layer;
+    const metadata = { id: path, handle: entity.handle == null ? "" : String(entity.handle), layer, entityType: type };
     if (type === "INSERT") {
       const block = dxf.blocks?.[entity.name];
       if (!block?.entities) {
@@ -124,7 +126,7 @@ export function parseDxfText(text, sourceProjection) {
         return;
       }
       const childMatrix = multiply(matrix, insertMatrix(entity, block));
-      block.entities.forEach((child) => visit(child, childMatrix, depth + 1));
+      block.entities.forEach((child, index) => visit(child, childMatrix, depth + 1, `${path}/${index}`, layer));
       return;
     }
 
@@ -136,17 +138,16 @@ export function parseDxfText(text, sourceProjection) {
         coordinates.push([...coordinates[0]]);
       }
       features.push({
+        ...metadata,
         kind: closed ? "polygon" : "polyline",
         coordinates,
-        layer: entity.layer || "0",
-        entityType: type,
       });
       return;
     }
 
     if (type === "POINT") {
       const point = entityPoint(entity);
-      if (point) features.push({ kind: "point", coordinate: convert(point, matrix), layer: entity.layer || "0", entityType: type });
+      if (point) features.push({ ...metadata, kind: "point", coordinate: convert(point, matrix) });
       else skippedCount += 1;
       return;
     }
@@ -154,7 +155,7 @@ export function parseDxfText(text, sourceProjection) {
     if (["TEXT", "MTEXT", "ATTRIB", "ATTDEF"].includes(type)) {
       const point = entityPoint(entity);
       const value = entity.text || entity.string || entity.value;
-      if (point && value) labels.push({ coordinate: convert(point, matrix), text: String(value), layer: entity.layer || "0" });
+      if (point && value) labels.push({ ...metadata, coordinate: convert(point, matrix), text: String(value) });
       else skippedCount += 1;
       return;
     }
@@ -162,7 +163,7 @@ export function parseDxfText(text, sourceProjection) {
     skippedCount += 1;
   };
 
-  (dxf.entities || []).forEach((entity) => visit(entity));
+  (dxf.entities || []).forEach((entity, index) => visit(entity, identity(), 0, String(index)));
   if (!features.length && !labels.length) {
     throw new Error("No supported 2D DXF geometry was found.");
   }

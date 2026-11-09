@@ -134,3 +134,23 @@
 .mga-grid-label { display: inline-block; color: #173f63; background: #ffffffb8; border: 1px solid #173f6340; border-radius: 3px; padding: 1px 3px; font: 700 9px/1.15 Arial,sans-serif; white-space: nowrap; pointer-events: none; }
 .mga-grid-label.easting { transform: translate(3px,-16px); }
 .mga-grid-label.northing { transform: translate(3px,3px); }
+
+.dxf-tree { grid-column: 1 / -1; min-width: 0; border-top: 1px solid #ccd9e3; margin-top: 5px; padding-top: 6px; cursor: default; }
+.dxf-branch > summary { padding: 5px 0; color: #34536a; font-size: 11px; cursor: pointer; overflow-wrap: anywhere; }
+.dxf-branch .dxf-branch { padding-left: 9px; border-left: 1px solid #cfdae3; }
+.dxf-tree .dxf-search { width: 100%; margin: 5px 0; padding: 5px !important; font-size: 11px !important; }
+.dxf-tree-row { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 4px; align-items: center; padding: 3px 2px; }
+.dxf-tree-row input { margin: 0; width: 13px; height: 13px; }
+.dxf-tree-row .button, .dxf-part-name { font-size: 11px; min-height: 25px; padding: 3px; text-align: left; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dxf-part-name { border: 0; background: transparent; color: #23465f; }
+.dxf-part.selected { background: #c2e5f5; border-radius: 3px; }
+.dxf-part-name:hover { background: #e2eff7; }
+.dxf-paging { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding-top: 6px; }
+.dxf-paging .button { padding: 2px 7px; min-height: 24px; font-size: 12px; }
+.dxf-paging small { font-size: 9px; }
+.dxf-selection-title { font-size: 12px; max-width: 330px; overflow-wrap: anywhere; }
+.dxf-plan-pane:not(.dxf-picking) .leaflet-interactive,
+.dxf-plan-pane:not(.dxf-picking) canvas { pointer-events: none !important; }
+.dxf-plan-pane.dxf-picking .leaflet-interactive,
+.dxf-plan-pane.dxf-picking canvas { cursor: crosshair; }
+.workspace-properties input[type="number"] { width: 85px; padding: 5px; }

@@ -273,6 +273,34 @@ export function reorderLayerStack(layers, movingId, targetId, after = false) {
   return result;
 }
 
+// Stable parser paths distinguish repeated block instances. Keep edits when
+// coordinates are regenerated for another source CRS.
+export function dxfComponents(parsed, previous = []) {
+  const edits = new Map(previous.map((item) => [item.id, item]));
+  return [[parsed.features, "geometry"], [parsed.labels, "text"]].flatMap(([items, category]) =>
+    items.map((item) => {
+      const old = edits.get(item.id);
+      return { ...item, category, visible: old?.visible ?? true, deleted: old?.deleted ?? false, style: { ...old?.style } };
+    }));
+}
+
+export function dxfScopeMatches(item, scope = {}) {
+  return (scope.id == null || item.id === scope.id) && (scope.layer == null || item.layer === scope.layer)
+    && (scope.category == null || item.category === scope.category);
+}
+
+export function dxfComponentAppearance(item, settings) {
+  const layer = settings.layerStyles?.get(item.layer) || {};
+  const category = layer[item.category] || {};
+  return {
+    visible: settings.visible !== false && !item.deleted && item.visible !== false && layer.visible !== false
+      && category.visible !== false && (item.category !== "text" || settings.textVisible !== false),
+    color: item.style?.color ?? category.color ?? layer.color ?? settings.color ?? "#e11d48",
+    weight: item.style?.weight ?? category.weight ?? layer.weight ?? settings.weight ?? 1.5,
+    textSize: item.style?.textSize ?? category.textSize ?? layer.textSize ?? settings.textSize ?? 11,
+  };
+}
+
 export function importedMapLocations(locations, definitions) {
   return locations.map((location) => {
     const definition = definitions[location.type];
