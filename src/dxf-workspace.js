@@ -18,6 +18,9 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
   entry.textSize = 11;
   const pane = map.getPane(entry.pane);
   pane.classList.add("dxf-plan-pane");
+  // Thin survey lines need a usable picking target without changing their
+  // drawn width. Keep this renderer scoped to the imported DXF.
+  const geometryRenderer = L.canvas({ pane: entry.pane, tolerance: 5 });
   if (!map.getPane("dxfSelectionPane")) {
     const highlightPane = map.createPane("dxfSelectionPane");
     highlightPane.style.zIndex = "630";
@@ -82,7 +85,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     for (const item of components) {
       if (!groups.has(item.layer)) groups.set(item.layer, []);
       groups.get(item.layer).push(item);
-      const options = { pane: entry.pane, interactive: true, bubblingMouseEvents: false, fill: false };
+      const options = { pane: entry.pane, renderer: geometryRenderer, interactive: true, bubblingMouseEvents: false, fill: false };
       let layer;
       if (item.category === "text") {
         const text = node("span", "workspace-dxf-label", item.text);
@@ -276,6 +279,9 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
       map.getPane("dxfSelectionPane").style.visibility = value ? "hidden" : "";
       updateHighlight();
     },
-    destroy() { highlight.clearLayers(); map.removeLayer(highlight); pane.classList.remove("dxf-picking"); },
+    destroy() {
+      highlight.clearLayers(); map.removeLayer(highlight); map.removeLayer(geometryRenderer);
+      pane.classList.remove("dxf-picking");
+    },
   };
 }
