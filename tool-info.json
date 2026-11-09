@@ -1,7 +1,7 @@
 {
   "id": "fieldwork-plan-generator",
   "name": "Fieldwork Plan Generator",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "status": "map-planning-preview",
   "owner": "Matthew Raison",
   "stack": [

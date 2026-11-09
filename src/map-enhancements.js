@@ -35,7 +35,7 @@ function tileLayer(source) {
     : "© OpenStreetMap contributors © CARTO";
   return L.tileLayer(`${window.location.origin}/api/tiles/${source}/{z}/{x}/{y}.${extension}`, {
     minZoom: 0,
-    maxZoom: 19,
+    maxZoom: 26,
     maxNativeZoom: 19,
     tileSize: 256,
     detectRetina: false,
@@ -384,6 +384,6 @@ export function enhanceMapPlanner(mapPlanner, { setStatus = () => {} } = {}) {
     setPanelStatus(dxfStatus, "No DXF loaded.");
   });
 
-  mapPlanner.fitBoundsToA1Frame = (bounds) => fitBoundsToA1Frame(map, bounds);
+  mapPlanner.fitBoundsToA1Frame = (bounds, options) => fitBoundsToA1Frame(map, bounds, options);
   return mapPlanner;
 }

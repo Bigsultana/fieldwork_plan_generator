@@ -188,7 +188,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   const map = L.map(mapElement, {
     center: DEFAULT_CENTER,
     zoom: 10,
-    maxZoom: 19,
+    maxZoom: 26,
     zoomControl: true,
     attributionControl: true,
     preferCanvas: true,
@@ -196,7 +196,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
 
   const tileLayer = L.tileLayer(TILE_URL, {
     minZoom: 0,
-    maxZoom: 19,
+    maxZoom: 26,
     maxNativeZoom: 19,
     tileSize: 256,
     detectRetina: false,

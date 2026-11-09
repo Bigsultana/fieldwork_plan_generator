@@ -4,6 +4,7 @@ import { enhanceMapLayers } from "./map-layer-upgrade.js";
 import { enhanceMapViewControls } from "./map-view-controls.js";
 import { enhanceCoordinateImport } from "./map-coordinate-importer.js";
 import { organiseMapTools } from "./map-tool-organizer.js";
+import { createMapWorkspace } from "./map-workspace.js";
 
 export function createMapPlanner(options = {}) {
   const planner = createBaseMapPlanner(options);
@@ -11,5 +12,5 @@ export function createMapPlanner(options = {}) {
   const withLayers = enhanceMapLayers(withOverlays, options);
   const withViewControls = enhanceMapViewControls(withLayers, options);
   const withCoordinateImport = enhanceCoordinateImport(withViewControls, options);
-  return organiseMapTools(withCoordinateImport, options);
+  return createMapWorkspace(organiseMapTools(withCoordinateImport, options), options);
 }
