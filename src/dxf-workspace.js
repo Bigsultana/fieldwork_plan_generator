@@ -257,7 +257,11 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     selectFile: () => { selection = null; updateHighlight(); },
     hasSelection: () => Boolean(selection),
     selectionTitle: scopeTitle,
-    setPicking(value) { picking = value; pane.classList.toggle("dxf-picking", value); },
+    setPicking(value) {
+      picking = value;
+      pane.style.pointerEvents = value ? "auto" : "none";
+      pane.classList.toggle("dxf-picking", value);
+    },
     deleteSelection() {
       if (!selection) return;
       const items = selectedItems().filter((item) => !item.deleted);
