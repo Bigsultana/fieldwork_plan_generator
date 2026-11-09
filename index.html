@@ -111,25 +111,6 @@
                 </div>
               </div>
               <div class="tool-group">
-                <h3>Georeferenced plan</h3>
-                <label>GeoTIFF file<input id="geotiff-file" type="file" accept=".tif,.tiff,image/tiff" /></label>
-                <label>Coordinate system<select id="geotiff-crs">
-                  <option value="auto">Detect from GeoTIFF</option>
-                  <option value="EPSG:7856">GDA2020 / MGA Zone 56</option>
-                  <option value="EPSG:7855">GDA2020 / MGA Zone 55</option>
-                  <option value="EPSG:28356">GDA94 / MGA Zone 56</option>
-                  <option value="EPSG:28355">GDA94 / MGA Zone 55</option>
-                  <option value="EPSG:4326">WGS84 latitude / longitude</option>
-                  <option value="EPSG:3857">Web Mercator</option>
-                </select></label>
-                <label>Overlay opacity<input id="overlay-opacity" type="range" min="0" max="1" step="0.05" value="0.65" /></label>
-                <div class="mini-toolbar">
-                  <button id="fit-overlay" class="button secondary" type="button">Fit overlay</button>
-                  <button id="remove-overlay" class="button danger" type="button">Remove</button>
-                </div>
-                <small>GeoTIFF is supported in this first release. GeoPDF and image + world-file import can be added next.</small>
-              </div>
-              <div class="tool-group">
                 <h3>GIS exports</h3>
                 <div class="mini-toolbar vertical">
                   <button id="export-kml" class="button secondary" type="button">Download .kml</button>

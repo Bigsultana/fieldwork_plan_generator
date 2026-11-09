@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 2.4.0 - 2026-11-09
+
+- Removed the scrolling right sidebar and duplicate single-file import and precision-zoom interfaces.
+- Integrated selected-layer settings above the map, Locations/View/GIS export controls in the workspace toolbar, and coordinate schedules/drawing checks below the map.
+- Added drag-to-reorder, direct Up/Down/Delete controls, per-row delete buttons and focused Delete-key removal in Contents.
+- Integrated non-destructive raster cropping and temporary source-image georeferencing into the workspace; retained coordinate import, MGA grid, fine nudging and DXF line styles.
+- Prevented fieldwork-editor saves from submitting the PowerPoint generation form, and ensured each DXF in a batch loads its own file.
+- Imported coordinate batches directly with their IDs and notes, and kept point editors open during map auto-panning.
 
 - Fixed survey DXF imports failing on empty trailing 3DFACE vertices emitted by the DXF parser; valid face coordinates and other drawing entities are preserved.
 

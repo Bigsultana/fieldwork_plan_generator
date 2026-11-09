@@ -11,7 +11,7 @@ import {
   scaleFromFrameWidth,
 } from "./map-model.js";
 import { assignLabelOffsets, evaluateMapQa } from "./map-point-layout.js";
-import { readGeoTiffOverlay } from "./geotiff-overlay.js";
+import { importedMapLocations } from "./model.js";
 import { downloadKml, downloadKmz } from "./kml.js";
 
 const DEFAULT_CENTER = [-27.91, 153.312];
@@ -135,15 +135,6 @@ function pointIcon(point, offset = { x: 0, y: 24 }) {
   });
 }
 
-function overlayBounds(coordinates) {
-  const latitudes = coordinates.map((coordinate) => Number(coordinate[1]));
-  const longitudes = coordinates.map((coordinate) => Number(coordinate[0]));
-  return L.latLngBounds(
-    [Math.min(...latitudes), Math.min(...longitudes)],
-    [Math.max(...latitudes), Math.max(...longitudes)],
-  );
-}
-
 function formatDistance(metres) {
   const value = Number(metres);
   if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} km`;
@@ -161,17 +152,12 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
   const searchInput = element("site-search");
   const searchResults = element("search-results");
   const includeMap = element("include-map");
-  const overlayInput = element("geotiff-file");
-  const overlayCrs = element("geotiff-crs");
-  const overlayOpacity = element("overlay-opacity");
   const mapSheetNumber = element("map-sheet-number");
   const mapTitle = element("map-title");
   const mapSubtitle = element("map-subtitle");
 
   let points = [];
   let activeType = null;
-  let overlay = null;
-  let overlayLayer = null;
   let loaded = false;
   let latestScale = null;
   let lastSearchAt = 0;
@@ -335,6 +321,7 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      event.stopPropagation();
       const data = new FormData(form);
       const latitude = Number(data.get("latitude"));
       const longitude = Number(data.get("longitude"));
@@ -499,6 +486,14 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     setStatus(`${added.label} placed at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}. Drag it to refine the location or click it to edit.`);
   }
 
+  function addImportedPoints(locations, { replace = false } = {}) {
+    const additions = importedMapLocations(locations, FIELDWORK_TYPES);
+    points = renumberWithCustomLabels([...(replace ? [] : points), ...additions]);
+    updatePointLayer();
+    renderPointTable();
+    return additions.length;
+  }
+
   function fitCoordinates(coordinates) {
     if (!coordinates.length) return;
     const bounds = L.latLngBounds(coordinates.map(([longitude, latitude]) => [latitude, longitude]));
@@ -512,38 +507,6 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
       maxZoom: 19,
       animate: true,
     });
-  }
-
-  async function addOverlay(file) {
-    if (!file) return;
-    setStatus(`Reading georeferenced plan ${file.name}…`);
-    try {
-      const next = await readGeoTiffOverlay(file, overlayCrs.value);
-      overlay = next;
-      if (overlayLayer) map.removeLayer(overlayLayer);
-      overlayLayer = L.imageOverlay(next.dataUrl, overlayBounds(next.coordinates), {
-        opacity: Number(overlayOpacity.value),
-        interactive: false,
-        pane: "overlayPane",
-      }).addTo(map);
-      overlayLayer.bringToFront();
-      pointLayer.bringToFront?.();
-      fitCoordinates(next.coordinates);
-      setStatus(`${file.name} added using ${next.sourceCrs}.`);
-    } catch (error) {
-      overlay = null;
-      overlayLayer = null;
-      setStatus(`Unable to add GeoTIFF: ${error.message}`, "error");
-    } finally {
-      overlayInput.value = "";
-    }
-  }
-
-  function clearOverlay() {
-    if (overlayLayer) map.removeLayer(overlayLayer);
-    overlayLayer = null;
-    overlay = null;
-    setStatus("Georeferenced plan overlay removed.");
   }
 
   function centreOnResult(result) {
@@ -817,7 +780,10 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     updateScale();
     updatePointLayer();
   });
-  map.on("moveend zoomend", () => {
+  // Panning translates every label equally. Rebuilding markers on moveend
+  // also destroys an editor popup while Leaflet is auto-panning it into view.
+  map.on("moveend", updateScale);
+  map.on("zoomend", () => {
     updateScale();
     updatePointLayer();
   });
@@ -892,14 +858,6 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     updatePointLayer();
     renderPointTable();
   });
-  overlayInput.addEventListener("change", () => addOverlay(overlayInput.files[0]));
-  overlayOpacity.addEventListener("input", () => {
-    overlayLayer?.setOpacity(Number(overlayOpacity.value));
-  });
-  element("remove-overlay").addEventListener("click", clearOverlay);
-  element("fit-overlay").addEventListener("click", () => {
-    if (overlay) fitCoordinates(overlay.coordinates);
-  });
   element("export-kml").addEventListener("click", () => downloadKml(exportOptions()));
   element("export-kmz").addEventListener("click", async () => downloadKmz(exportOptions()));
   element("export-coordinate-csv").addEventListener("click", exportCsv);
@@ -915,8 +873,9 @@ export function createMapPlanner({ getProject, setStatus = () => {} } = {}) {
     getQaWarnings,
     getPointLayer: () => pointLayer,
     setPointVisibility,
+    addImportedPoints,
     isIncluded: () => includeMap.checked,
-    hasContent: () => points.length > 0 || Boolean(overlay),
+    hasContent: () => points.length > 0,
     map,
   };
 }
