@@ -26,7 +26,7 @@ export function enhanceMapViewControls(mapPlanner) {
     <h3>Precise map framing</h3>
     <div class="precision-zoom-row">
       <button id="precision-zoom-out" type="button" title="Zoom out by 0.25">−</button>
-      <input id="precision-zoom-slider" type="range" min="1" max="20" step="0.05" value="${map.getZoom()}" />
+      <input id="precision-zoom-slider" type="range" min="1" max="26" step="0.05" value="${map.getZoom()}" />
       <output id="precision-zoom-value">${zoomLabel(map.getZoom())}</output>
     </div>
     <div class="precision-button-row">
@@ -62,7 +62,7 @@ export function enhanceMapViewControls(mapPlanner) {
   const nudgeStep = group.querySelector("#precision-nudge-step");
 
   function setZoom(value) {
-    const next = Math.min(20, Math.max(1, Number(value)));
+    const next = Math.min(26, Math.max(1, Number(value)));
     map.setZoom(next, { animate: false });
   }
 

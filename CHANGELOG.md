@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.0 - 2026-11-09
+
+- Added a map-first workspace with a toolbar, Contents layer list, Properties inspector and separate project, supporting-sheet and export tabs.
+- Added multi-layer JPG, PNG, TIFF/GeoTIFF and DXF imports by file selection or map drag-and-drop, with individual visibility, ordering and opacity controls.
+- Added full-resolution image tile rendering, rotated world-file support and deep zoom to level 26; online basemaps retain their native tile limits.
+- Added manual image georeferencing using three or more control points, map clicks or known coordinates, preview/apply/cancel, fit residuals and alignment locking.
+- Preserved the existing fieldwork editor, coordinate imports/schedules, MGA grid, image-cropping tools and GIS/A1 PowerPoint outputs.
+- Added geometry, projection, sidecar-matching and GeoTIFF metadata regression tests.
+
 ## 2.2.0 - 2026-08-03
 
 - Added selectable satellite imagery, street-map and imagery-only backgrounds.

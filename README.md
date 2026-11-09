@@ -2,11 +2,22 @@
 
 Fieldwork Plan Generator is a privacy-first browser application for planning field investigations and producing formatted A1 landscape PowerPoint fieldwork plans.
 
-**Version:** 2.1.0  
+**Version:** 2.3.0<br>
 **Runtime:** Cloudflare Worker + static browser application  
 **Owner:** Matthew Raison
 
 ## What it does
+
+### Map workspace
+
+- Open **Map workspace** to find a site by address or latitude/longitude. Use the toolbar to place fieldwork points or change zoom.
+- Select **Add plans**, or drop JPG, PNG, TIFF and DXF files onto the map. Multiple files become separate layers. Include matching world files (`.jgw`, `.pgw`, `.tfw`, `.wld`, etc.) and `.prj` files in the same selection when available.
+- Select a layer in **Contents** to change its opacity, visibility or stacking order, or zoom to it. Choose a source CRS for DXF/world-file images when no matching PRJ is supplied. GeoTIFF metadata is detected automatically when supported.
+- For an unreferenced image, select **Georeference image**. Zoom/pan the source-image picker, click a detail, then click the matching main-map location or enter its known coordinates. WGS84 inputs use longitude then latitude; site search continues to accept latitude, longitude.
+- Use at least three non-collinear points spread across the image, then **Preview alignment** and **Apply**. Four or more points provide redundant observations for the displayed fit RMS. The RMS measures agreement with selected controls, not absolute survey accuracy. **Cancel** restores the previous alignment. Applied alignments are locked; uncheck **Lock alignment** to edit.
+- Uploaded raster layers use the original image resolution and render visible tiles up to zoom 26. Background tiles are enlarged beyond their native zoom; zoom cannot add source detail. Browser memory still limits very large images.
+- Existing precision, crop, grid, coordinate-import and GIS export controls remain under **More tools**. The coordinate register expands below the map. Project information, supporting sheets and PowerPoint export have their own tabs.
+- Visible unplaced layers and unfinished georeferencing must be resolved or hidden before a mapped PowerPoint can be exported. Plans remain in browser memory for the current session.
 
 ### Interactive map planning
 
@@ -36,7 +47,7 @@ Selected drawings, GeoTIFFs, map captures and the generated PowerPoint remain in
 
 ## Map data and site search
 
-The browser map is rendered with MapLibre GL JS using the OpenFreeMap Liberty style. Address search is submitted only when the user presses Search. The Cloudflare Worker proxies and caches the search request so the browser does not call the public geocoder directly.
+The browser map is rendered with Leaflet, with selectable Esri satellite imagery, a CARTO/OpenStreetMap street map, or no online background. Address search is submitted only when the user presses Search. The Cloudflare Worker proxies and caches search and basemap requests.
 
 Map and search data require visible OpenStreetMap attribution. Do not add bulk geocoding, autocomplete, tile prefetching or offline-map download features without first reviewing the applicable provider policies.
 
@@ -46,14 +57,14 @@ The coordinate schedule is generated from locations clicked on a web map. MGA202
 
 ## Georeferenced-plan support
 
-Version 2.1 supports GeoTIFF overlays with automatic CRS detection where the TIFF contains a recognised EPSG code. Manual selections are available for:
+GeoTIFF overlays support automatic CRS detection where the TIFF contains a supported EPSG code. Manual selections are available for:
 
 - GDA2020 / MGA Zones 55 and 56;
 - GDA94 / MGA Zones 55 and 56;
 - WGS84 latitude/longitude; and
 - Web Mercator.
 
-GeoPDF and image + world-file import are not included in the first map-planning release. Convert those files to a georeferenced GeoTIFF before import, or add those formats in a later release.
+JPG, PNG and TIFF images support matching world/PRJ files or manual image georeferencing. Georeferenced DXF linework supports a selected CRS or matching PRJ. Unsupported DXF entities are reported as skipped; this is a planning viewer, not a full CAD renderer. PDF/GeoPDF import is not included.
 
 ## Cloudflare deployment
 
@@ -112,7 +123,7 @@ sheet_number,drawing_title_1,drawing_title_2,drawing_title_3,scale,revision
 - Uploaded engineering drawings and GeoTIFF contents remain in browser memory.
 - Up to 60 supporting images can be held in one browser session.
 - Large GeoTIFFs and source images can use significant browser memory.
-- GeoTIFF rendering is downsampled for interactive map use when necessary.
+- The main workspace preserves original raster resolution; the older GeoTIFF/cropping tools under More tools use reduced-resolution previews where necessary.
 - Project defaults saved in the browser use local storage on the current device.
 - No application database or file-upload API is used.
 
