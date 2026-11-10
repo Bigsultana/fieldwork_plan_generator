@@ -205,10 +205,11 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
             const page = Math.max(0, Math.min(ui.pages.get(key) || 0, Math.ceil(parts.length / PAGE_SIZE) - 1));
             ui.pages.set(key, page);
             for (const item of parts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
-              const row = node("div", `dxf-tree-row dxf-part${selection?.id === item.id ? " selected" : ""}`);
+              const isSelected = selection?.id === item.id || selection?.ids?.has(item.id);
+              const row = node("div", `dxf-tree-row dxf-part${isSelected ? " selected" : ""}`);
               const name = itemName(item), choose = button(name, () => select({ id: item.id }));
               choose.className = "dxf-part-name"; choose.title = name;
-              choose.setAttribute("aria-pressed", String(selection?.id === item.id));
+              choose.setAttribute("aria-pressed", String(Boolean(isSelected)));
               row.append(checkbox(`Show ${name}`, item.visible, (value) => { item.visible = value; refresh([item]); onChange(); }), choose);
               partList.append(row);
             }
