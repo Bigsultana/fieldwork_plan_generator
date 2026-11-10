@@ -7,6 +7,7 @@ import { createPlanRasterLayer } from "./plan-raster-layer.js";
 import { detectVisiblePixelBounds } from "./world-file-overlay.js";
 import { workspaceElement as node, workspaceButton as button, workspaceMenu, workspaceDialog } from "./workspace-controls.js";
 import { installWorkspaceMapTools } from "./workspace-map-tools.js";
+import { createDxfWorkspace } from "./dxf-workspace.js";
 import "./map-workspace.css";
 
 const CRS_OPTIONS = `<option value="auto">Detect / matching PRJ</option>
@@ -99,7 +100,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   const layerActions = node("div", "workspace-layer-actions");
   const layerUp = button("↑ Up", () => { if (selected) moveEntry(selected, 1); }, "Move selected layer up");
   const layerDown = button("↓ Down", () => { if (selected) moveEntry(selected, -1); }, "Move selected layer down");
-  const layerDelete = button("Delete", () => { if (selected) deleteEntry(selected); }, "Delete selected layer");
+  const layerDelete = button("Delete", deleteSelected, "Delete selected layer or DXF parts");
   layerActions.append(layerUp, layerDown, layerDelete); left.append(layerActions);
   left.append(node("p", "workspace-layer-hint", "Drag to reorder · top layer draws on top"));
   const list = node("div", "workspace-layer-list");
@@ -186,7 +187,9 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       const row = node("div", `workspace-layer-row${entry === selected ? " selected" : ""}`);
       row.dataset.layerId = entry.id;
       row.draggable = true;
+      row.addEventListener("pointerdown", (event) => { row.draggable = !event.target.closest(".dxf-tree"); });
       row.addEventListener("dragstart", (event) => {
+        if (event.target.closest(".dxf-tree")) { event.preventDefault(); return; }
         event.dataTransfer.setData("application/x-fieldwork-layer", entry.id);
         event.dataTransfer.effectAllowed = "move";
       });
@@ -211,6 +214,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       visible.setAttribute("aria-label", `Show ${entry.name}`);
       visible.addEventListener("change", () => {
         entry.visible = visible.checked;
+        entry.dxf?.refresh();
         if (entry.layer) { if (entry.visible) entry.layer.addTo(map); else map.removeLayer(entry.layer); }
       });
       const select = button(entry.name, () => selectEntry(entry));
@@ -222,15 +226,20 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       const remove = button("×", () => deleteEntry(entry), `Delete ${entry.name}`);
       remove.setAttribute("aria-label", `Delete ${entry.name}`);
       remove.className = "workspace-layer-delete";
-      row.append(visible, label, remove); list.append(row);
+      row.append(visible, label, remove);
+      if (entry.dxf) row.append(entry.dxf.renderTree());
+      list.append(row);
     });
     empty.hidden = entries.length > 0;
     layerUp.disabled = !selected || entries.indexOf(selected) === entries.length - 1;
     layerDown.disabled = !selected || entries.indexOf(selected) === 0;
     layerDelete.disabled = !selected;
+    layerDelete.textContent = selected?.dxf?.hasSelection() ? "Delete parts" : "Delete";
+    layerDelete.title = selected?.dxf?.hasSelection() ? `Delete ${selected.dxf.selectionTitle()}` : "Delete selected layer";
   }
   function selectEntry(entry) {
     if (session && session.entry !== entry) cancelReference();
+    entries.forEach((candidate) => { candidate.dxf?.selectFile(); candidate.dxf?.setPicking(false); });
     selected = entry; renderList(); renderProperties();
     [...list.children].find((row) => row.dataset.layerId === entry.id)?.querySelector(".workspace-layer-name")?.focus({ preventScroll: true });
   }
@@ -240,6 +249,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     const entry = selected;
     properties.append(node("h3", "workspace-filename", entry.name));
     properties.append(node("p", "workspace-help", entry.kind === "dxf" ? (entry.summary || "Select the coordinate system used by the DXF.") : `${entry.width.toLocaleString()} × ${entry.height.toLocaleString()} pixels · original resolution`));
+    if (entry.dxf?.hasSelection()) { entry.dxf.renderProperties(properties); return; }
     const crsLabel = node("label", "", "Source coordinate system");
     const crs = node("select"); crs.id = "workspace-source-crs"; crs.innerHTML = CRS_OPTIONS;
     crs.value = entry.selectedCrs || "auto";
@@ -265,18 +275,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     });
     opacityLabel.append(opacity); properties.append(opacityLabel);
     if (entry.kind === "dxf") {
-      const colorLabel = node("label", "", "Line colour");
-      const color = node("input"); color.type = "color"; color.value = entry.color;
-      color.addEventListener("input", () => {
-        entry.color = color.value;
-        entry.layer?.eachLayer((layer) => { layer.setStyle?.({ color: entry.color, fillColor: entry.color });
-          const label = layer.getElement?.()?.querySelector(".workspace-dxf-label"); if (label) label.style.color = entry.color; });
-      });
-      colorLabel.append(color); properties.append(colorLabel);
-      const weightLabel = node("label", "", "Line width");
-      const weight = node("input"); weight.type = "range"; weight.min = ".5"; weight.max = "6"; weight.step = ".5"; weight.value = entry.weight;
-      weight.addEventListener("input", () => { entry.weight = Number(weight.value); entry.layer?.eachLayer((layer) => layer.setStyle?.({ weight: entry.weight })); });
-      weightLabel.append(weight); properties.append(weightLabel);
+      entry.dxf?.renderProperties(properties);
     }
     const actions = node("div", "workspace-property-actions");
     if (entry.placement) actions.append(button("Zoom to layer", () => fitCorners(layerCorners(entry))));
@@ -298,6 +297,7 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
   }
   function deleteEntry(entry) {
     if (session?.entry === entry) cancelReference();
+    entry.dxf?.destroy();
     removeLayer(entry); map.getPane(entry.pane).remove();
     entries.splice(entries.indexOf(entry), 1);
     if (selected === entry) selected = entries.at(-1) || null;
@@ -305,9 +305,14 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     if (selected) [...list.children].find((row) => row.dataset.layerId === selected.id)?.querySelector(".workspace-layer-name")?.focus({ preventScroll: true });
     notice(`${entry.name} removed.`);
   }
+  function deleteSelected() {
+    if (!selected) return;
+    if (selected.dxf?.hasSelection()) selected.dxf.deleteSelection();
+    else deleteEntry(selected);
+  }
   left.addEventListener("keydown", (event) => {
     if (event.key === "Delete" && selected && !event.target.closest("input,textarea,select,[contenteditable=true]")) {
-      event.preventDefault(); deleteEntry(selected);
+      event.preventDefault(); deleteSelected();
     }
   });
   function moveEntry(entry, direction) {
@@ -364,21 +369,26 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       if (parsed.boundsCoordinates.some(([longitude, latitude]) => !Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 85.05112878)) {
         throw new Error("The DXF coordinates fall outside the map. Check its source CRS.");
       }
-      const group = L.layerGroup();
-      const style = { color: entry.color, weight: entry.weight, pane: entry.pane, interactive: false, fill: false };
-      parsed.features.forEach((feature) => {
-        if (feature.kind === "point") L.circleMarker([feature.coordinate[1], feature.coordinate[0]], { ...style, radius: 3 }).addTo(group);
-        else L.polyline(feature.coordinates.map(([x, y]) => [y, x]), style).addTo(group);
-      });
-      parsed.labels.forEach((label) => {
-        const text = node("span", "workspace-dxf-label", label.text); text.style.color = entry.color;
-        L.marker([label.coordinate[1], label.coordinate[0]], { pane: entry.pane, interactive: false,
-          icon: L.divIcon({ className: "", html: text, iconSize: null }) }).addTo(group);
-      });
       const corners = parsed.boundsCoordinates.map(([x, y]) => { const p = L.CRS.EPSG3857.project(L.latLng(y, x)); return [p.x, p.y]; });
       if (!corners.length) throw new Error("The DXF contains no supported geometry.");
-      removeLayer(entry); entry.layer = group;
-      if (entry.visible) group.addTo(map);
+      entry.dxf ||= createDxfWorkspace(entry, { map, notice,
+        fitBounds: (bounds) => planner.fitBoundsToA1Frame(bounds, { maxZoom: 26, animate: false }),
+        onSelect: () => {
+          if (session && session.entry !== entry) cancelReference();
+          entries.filter((candidate) => candidate !== entry).forEach((candidate) => {
+            candidate.dxf?.selectFile(); candidate.dxf?.setPicking(false);
+          });
+          selected = entry; renderList(); renderProperties();
+        },
+        onChange: () => { renderList(); renderProperties(); },
+        onPick: (enabled) => {
+          document.querySelector("#map-pan-mode").click();
+          entries.forEach((candidate) => candidate.dxf?.setPicking(candidate === entry && enabled));
+          renderProperties();
+          notice(enabled ? "Click a DXF line or text to select it. Use Contents to select overlapping or hidden parts." : "DXF selection finished.");
+        },
+      });
+      entry.dxf.install(parsed);
       entry.placement = { corners, sourceCrs };
       entry.summary = `${parsed.features.length} geometry items · ${parsed.labels.length} labels${parsed.skippedCount ? ` · ${parsed.skippedCount} unsupported entities skipped` : ""}`;
     }
@@ -520,7 +530,14 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
     addReference([p.x, p.y]);
   }, true);
   document.querySelectorAll("[data-point-type]").forEach((el) => el.addEventListener("click", () => { if (session) cancelReference(); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && session) cancelReference(); });
+  document.querySelectorAll("[data-point-type], #map-pan-mode").forEach((el) => el.addEventListener("click", () => {
+    entries.forEach((entry) => entry.dxf?.setPicking(false)); renderProperties();
+  }));
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (session) cancelReference();
+    entries.forEach((entry) => entry.dxf?.setPicking(false)); renderProperties();
+  });
 
   const originalCapture = planner.capturePlan.bind(planner);
   planner.capturePlan = async () => {
@@ -541,7 +558,10 @@ export function createMapWorkspace(planner, { setStatus = () => {} } = {}) {
       }));
     });
     await Promise.all(loading);
-    const plan = await originalCapture();
+    let plan;
+    entries.forEach((entry) => entry.dxf?.hideHighlight(true));
+    try { plan = await originalCapture(); }
+    finally { entries.forEach((entry) => entry.dxf?.hideHighlight(false)); }
     if (plan) {
       plan.planLayers = entries.filter((e) => e.visible && e.placement).map((e) => ({ name: e.name, sourceCrs: e.placement.sourceCrs, opacity: e.opacity }));
       plan.layerSummary = planner.getLayerState();
