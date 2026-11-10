@@ -87,6 +87,14 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     ui.open = true; ui.query = ""; ui.objectType = objectType; ui.pages.clear();
     selectParts(components.filter(matchesQuery), title);
   }
+  function setSelectionVisibility(visible) {
+    if (!selection) return;
+    const items = selectedItems().filter((item) => !item.deleted);
+    if (selection.ids) items.forEach((item) => { item.visible = visible; });
+    else if (selection.id != null) items[0].visible = visible;
+    else scopeSettings().visible = visible;
+    refresh(items); onChange();
+  }
   function install(parsed) {
     if (entry.layer) map.removeLayer(entry.layer);
     components = dxfComponents(parsed, components);
@@ -155,10 +163,19 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     allText.disabled = !active.some((item) => item.category === "text");
     allPolylines.disabled = !active.some((item) => dxfComponentMatchesFilter(item, { objectType: "polylines" }));
     actions.append(selectMatches, allText, allPolylines);
+    const selectionActions = node("div", "dxf-filter-actions");
+    const show = button("Show selected", () => setSelectionVisibility(true));
+    const hide = button("Hide selected", () => setSelectionVisibility(false));
+    const clear = button("Clear selection", () => select(null));
+    const selectionCount = selection ? selectedItems().filter((item) => !item.deleted).length : 0;
+    show.disabled = hide.disabled = clear.disabled = !selectionCount;
+    selectionActions.append(show, hide, clear);
+    const selectionStatus = node("p", "workspace-help", `${selectionCount.toLocaleString()} selected · checkboxes show or hide objects`);
+    selectionStatus.setAttribute("aria-live", "polite");
     const matchCount = node("p", "workspace-help"); matchCount.setAttribute("aria-live", "polite");
     typeLabel.append(type);
     const content = node("div", "dxf-tree-content");
-    tree.append(search, typeLabel, actions, matchCount, content);
+    tree.append(search, typeLabel, actions, selectionActions, selectionStatus, matchCount, content);
     function draw() {
       content.replaceChildren();
       const filtering = Boolean(ui.query.trim()) || ui.objectType !== "all";
@@ -283,10 +300,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
       const target = bulk ? {} : scopeSettings();
       const visibilityTarget = bulk ? { visible: items.every((item) => item.visible !== false) } : selection.id != null ? items[0] : target;
       const label = node("label", "inline-check", "Show selected");
-      const showSelected = checkbox("Show selected", visibilityTarget.visible !== false, (value) => {
-        if (bulk) items.forEach((item) => { item.visible = value; }); else visibilityTarget.visible = value;
-        refresh(items); onChange();
-      });
+      const showSelected = checkbox("Show selected", visibilityTarget.visible !== false, setSelectionVisibility);
       showSelected.indeterminate = bulk && items.some((item) => item.visible !== false) && !visibilityTarget.visible;
       label.prepend(showSelected); container.append(label);
       addStyleControls(container, target, items, new Set(items.map((item) => item.category)), selection.id == null && !bulk, bulk);
