@@ -285,8 +285,18 @@ export function dxfComponents(parsed, previous = []) {
 }
 
 export function dxfScopeMatches(item, scope = {}) {
-  return (scope.id == null || item.id === scope.id) && (scope.layer == null || item.layer === scope.layer)
+  return (scope.ids == null || scope.ids.has(item.id))
+    && (scope.id == null || item.id === scope.id) && (scope.layer == null || item.layer === scope.layer)
     && (scope.category == null || item.category === scope.category);
+}
+
+export function dxfComponentMatchesFilter(item, { objectType = "all", query = "" } = {}) {
+  if (item.deleted) return false;
+  const matchesType = objectType === "all" || (objectType === "text" ? item.category === "text"
+    : objectType === "polylines" ? ["LWPOLYLINE", "POLYLINE"].includes(item.entityType)
+    : item.entityType === objectType);
+  const term = query.trim().toLowerCase();
+  return matchesType && (!term || `${item.layer} ${item.entityType} ${item.handle} ${item.id} ${item.text || ""}`.toLowerCase().includes(term));
 }
 
 export function dxfComponentAppearance(item, settings) {

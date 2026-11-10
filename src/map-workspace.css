@@ -139,6 +139,10 @@
 .dxf-branch > summary { padding: 5px 0; color: #34536a; font-size: 11px; cursor: pointer; overflow-wrap: anywhere; }
 .dxf-branch .dxf-branch { padding-left: 9px; border-left: 1px solid #cfdae3; }
 .dxf-tree .dxf-search { width: 100%; margin: 5px 0; padding: 5px !important; font-size: 11px !important; }
+.dxf-type-filter { display: grid; gap: 4px; margin: 5px 0; font-size: 11px; }
+.dxf-type-filter select { width: 100%; min-width: 0; font-size: 11px; padding: 5px; }
+.dxf-filter-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.dxf-filter-actions .button { min-height: 26px; font-size: 10px; padding: 4px 6px; }
 .dxf-tree-row { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 4px; align-items: center; padding: 3px 2px; }
 .dxf-tree-row input { margin: 0; width: 13px; height: 13px; }
 .dxf-tree-row .button, .dxf-part-name { font-size: 11px; min-height: 25px; padding: 3px; text-align: left; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

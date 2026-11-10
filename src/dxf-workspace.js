@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { dxfComponents, dxfScopeMatches, dxfComponentAppearance } from "./model.js";
+import { dxfComponents, dxfScopeMatches, dxfComponentAppearance, dxfComponentMatchesFilter } from "./model.js";
 import { workspaceElement as node, workspaceButton as button } from "./workspace-controls.js";
 
 const PAGE_SIZE = 40;
@@ -12,7 +12,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
   let components = [], groups = new Map(), rendered = new Map();
   let selection = null, picking = false, highlightHidden = false;
   const undo = [];
-  const ui = { open: true, query: "", layers: new Set(), categories: new Set(), pages: new Map() };
+  const ui = { open: true, query: "", objectType: "all", layers: new Set(), categories: new Set(), pages: new Map() };
   entry.layerStyles = new Map();
   entry.textVisible = true;
   entry.textSize = 11;
@@ -40,6 +40,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     return settings[selection.category] ||= {};
   }
   function scopeTitle() {
+    if (selection?.ids) return selection.title;
     if (selection?.id != null) return itemName(components.find((item) => item.id === selection.id));
     return selection ? `${selection.layer}${selection.category ? ` / ${selection.category === "text" ? "Text" : "Geometry"}` : ""}` : entry.name;
   }
@@ -71,11 +72,20 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     if (scope?.id != null) {
       const item = components.find((part) => part.id === scope.id);
       ui.open = true; ui.layers.add(item.layer); ui.categories.add(`${item.layer}\0${item.category}`);
-      if (fromMap) ui.query = "";
+      if (fromMap) { ui.query = ""; ui.objectType = "all"; }
       const siblings = groups.get(item.layer).filter((part) => !part.deleted && part.category === item.category && matchesQuery(part));
       ui.pages.set(`${item.layer}\0${item.category}`, Math.floor(siblings.indexOf(item) / PAGE_SIZE));
     }
     updateHighlight(); onSelect();
+  }
+  function selectParts(items, title) {
+    const active = items.filter((item) => !item.deleted);
+    if (!active.length) return;
+    select({ ids: new Set(active.map((item) => item.id)), title });
+  }
+  function selectType(objectType, title) {
+    ui.open = true; ui.query = ""; ui.objectType = objectType; ui.pages.clear();
+    selectParts(components.filter(matchesQuery), title);
   }
   function install(parsed) {
     if (entry.layer) map.removeLayer(entry.layer);
@@ -104,7 +114,7 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     if (entry.visible) entry.layer.addTo(map);
   }
   function matchesQuery(item) {
-    return !ui.query || `${item.layer} ${item.entityType} ${item.handle} ${item.id} ${item.text || ""}`.toLowerCase().includes(ui.query.toLowerCase());
+    return dxfComponentMatchesFilter(item, ui);
   }
   function checkbox(label, checked, change) {
     const input = node("input"); input.type = "checkbox"; input.checked = checked;
@@ -125,24 +135,50 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
     const search = node("input", "dxf-search"); search.type = "search"; search.placeholder = "Find layer, text or entity…";
     search.setAttribute("aria-label", `Find parts in ${entry.name}`); search.value = ui.query;
     search.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
+    const typeLabel = node("label", "dxf-type-filter", "Object type");
+    const type = node("select"); type.setAttribute("aria-label", `Object type for ${entry.name}`);
+    const active = components.filter((item) => !item.deleted);
+    const types = [["all", "All object types"], ["text", "Text (all text types)"], ["polylines", "Polylines (both formats)"],
+      ...[...new Set([...active.map((item) => item.entityType),
+        ...(["all", "text", "polylines"].includes(ui.objectType) ? [] : [ui.objectType])])].sort().map((value) => [value, value])];
+    for (const [value, title] of types) {
+      const count = active.filter((item) => dxfComponentMatchesFilter(item, { objectType: value })).length;
+      if (!count && value !== "all" && value !== ui.objectType) continue;
+      const option = node("option", "", `${title} (${count.toLocaleString()})`); option.value = value; type.append(option);
+    }
+    type.value = ui.objectType;
+    const actions = node("div", "dxf-filter-actions");
+    const selectMatches = button("Select matches", () => selectParts(components.filter(matchesQuery),
+      `Filtered objects: ${type.selectedOptions[0]?.textContent || "All object types"}${ui.query ? ` / ${ui.query}` : ""}`));
+    const allText = button("Select all text", () => selectType("text", "All text"));
+    const allPolylines = button("Select all polylines", () => selectType("polylines", "All polylines"));
+    allText.disabled = !active.some((item) => item.category === "text");
+    allPolylines.disabled = !active.some((item) => dxfComponentMatchesFilter(item, { objectType: "polylines" }));
+    actions.append(selectMatches, allText, allPolylines);
+    const matchCount = node("p", "workspace-help"); matchCount.setAttribute("aria-live", "polite");
+    typeLabel.append(type);
     const content = node("div", "dxf-tree-content");
-    tree.append(search, content);
+    tree.append(search, typeLabel, actions, matchCount, content);
     function draw() {
       content.replaceChildren();
+      const filtering = Boolean(ui.query.trim()) || ui.objectType !== "all";
       let matches = 0;
       for (const [name, all] of groups) {
-        const items = all.filter((item) => !item.deleted && matchesQuery(item));
+        const items = all.filter(matchesQuery);
         if (!items.length) continue;
         matches += items.length;
         const settings = layerSettings(name);
-        const layerBranch = branch(`${name} (${items.length.toLocaleString()})`, Boolean(ui.query) || ui.layers.has(name), (open) => {
+        const layerBranch = branch(`${name} (${items.length.toLocaleString()})`, filtering || ui.layers.has(name), (open) => {
           if (open) ui.layers.add(name); else ui.layers.delete(name);
         });
         const layerRow = node("div", "dxf-tree-row");
-        const selectLayer = button("Layer settings", () => select({ layer: name }));
-        selectLayer.setAttribute("aria-label", `Edit CAD layer ${name}`);
-        layerRow.append(checkbox(`Show CAD layer ${name}`, settings.visible !== false, (value) => {
-          settings.visible = value; refresh(all); onChange();
+        const selectLayer = button(filtering ? "Matching layer objects" : "Layer settings", () => filtering
+          ? selectParts(items, `${name} / matching objects`) : select({ layer: name }));
+        selectLayer.setAttribute("aria-label", filtering ? `Edit matching objects on CAD layer ${name}` : `Edit CAD layer ${name}`);
+        layerRow.append(checkbox(filtering ? `Show matching objects on CAD layer ${name}` : `Show CAD layer ${name}`,
+          filtering ? items.every((item) => item.visible) : settings.visible !== false, (value) => {
+          if (filtering) items.forEach((item) => { item.visible = value; }); else settings.visible = value;
+          refresh(filtering ? items : all); onChange();
         }), selectLayer);
         layerBranch.append(layerRow);
         for (const category of ["geometry", "text"]) {
@@ -150,14 +186,16 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
           if (!parts.length) continue;
           const key = `${name}\0${category}`, title = category === "text" ? "Text" : "Geometry";
           const categorySettings = settings[category] ||= {};
-          const categoryBranch = branch(`${title} (${parts.length.toLocaleString()})`, Boolean(ui.query) || ui.categories.has(key), (open) => {
+          const categoryBranch = branch(`${title} (${parts.length.toLocaleString()})`, filtering || ui.categories.has(key), (open) => {
             if (open) ui.categories.add(key); else ui.categories.delete(key);
           });
           const categoryRow = node("div", "dxf-tree-row");
-          const selectCategory = button(`${title} settings`, () => select({ layer: name, category }));
+          const selectCategory = button(`${title} settings`, () => filtering
+            ? selectParts(parts, `${name} / matching ${category}`) : select({ layer: name, category }));
           selectCategory.setAttribute("aria-label", `Edit ${category} on ${name}`);
-          categoryRow.append(checkbox(`Show ${category} on ${name}`, categorySettings.visible !== false, (value) => {
-            categorySettings.visible = value; refresh(all); onChange();
+          categoryRow.append(checkbox(`Show ${category} on ${name}`, filtering ? parts.every((item) => item.visible) : categorySettings.visible !== false, (value) => {
+            if (filtering) parts.forEach((item) => { item.visible = value; }); else categorySettings.visible = value;
+            refresh(filtering ? parts : all); onChange();
           }), selectCategory);
           categoryBranch.append(categoryRow);
           const partList = node("div", "dxf-parts"); categoryBranch.append(partList);
@@ -167,10 +205,11 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
             const page = Math.max(0, Math.min(ui.pages.get(key) || 0, Math.ceil(parts.length / PAGE_SIZE) - 1));
             ui.pages.set(key, page);
             for (const item of parts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
-              const row = node("div", `dxf-tree-row dxf-part${selection?.id === item.id ? " selected" : ""}`);
+              const isSelected = selection?.id === item.id || selection?.ids?.has(item.id);
+              const row = node("div", `dxf-tree-row dxf-part${isSelected ? " selected" : ""}`);
               const name = itemName(item), choose = button(name, () => select({ id: item.id }));
               choose.className = "dxf-part-name"; choose.title = name;
-              choose.setAttribute("aria-pressed", String(selection?.id === item.id));
+              choose.setAttribute("aria-pressed", String(Boolean(isSelected)));
               row.append(checkbox(`Show ${name}`, item.visible, (value) => { item.visible = value; refresh([item]); onChange(); }), choose);
               partList.append(row);
             }
@@ -190,22 +229,30 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
         }
         content.append(layerBranch);
       }
+      selectMatches.disabled = matches === 0;
+      matchCount.textContent = `${matches.toLocaleString()} matching objects · selection includes all pages`;
       if (!matches) content.append(node("p", "workspace-help", activeCount ? "No matching parts." : "All components deleted. Use Undo delete to restore them."));
     }
     search.addEventListener("input", () => { ui.query = search.value; ui.pages.clear(); draw(); });
+    type.addEventListener("change", () => { ui.objectType = type.value; ui.pages.clear(); draw(); });
     draw(); return tree;
   }
-  function addStyleControls(container, target, items, categories, parent = false) {
+  function addStyleControls(container, target, items, categories, parent = false, bulk = false) {
     const sample = items[0] ? dxfComponentAppearance(items[0], entry) : entry;
+    function setStyle(key, value) {
+      const relevant = items.filter((item) => key === "weight" ? item.category === "geometry" : key === "textSize" ? item.category === "text" : true);
+      if (bulk) relevant.forEach((item) => { item.style[key] = value; }); else target[key] = value;
+      refresh(relevant);
+    }
     const colourLabel = node("label", "", "Colour"), colour = node("input");
     colour.type = "color"; colour.value = target.color || sample.color;
-    colour.addEventListener("input", () => { target.color = colour.value; refresh(items); });
+    colour.addEventListener("input", () => setStyle("color", colour.value));
     colourLabel.append(colour); container.append(colourLabel);
     if (categories.has("geometry")) {
       const label = node("label", "", "Line width"), width = node("input");
       width.type = "range"; width.min = ".5"; width.max = "8"; width.step = ".5"; width.value = target.weight || sample.weight;
       width.setAttribute("aria-label", "Line width");
-      width.addEventListener("input", () => { target.weight = Number(width.value); refresh(items); });
+      width.addEventListener("input", () => setStyle("weight", Number(width.value)));
       label.append(width); container.append(label);
     }
     if (categories.has("text")) {
@@ -213,14 +260,18 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
       size.type = "number"; size.min = "6"; size.max = "72"; size.step = "1"; size.value = target.textSize || sample.textSize;
       size.addEventListener("change", () => {
         if (!size.checkValidity() || !size.value) { size.reportValidity(); return; }
-        target.textSize = Number(size.value); refresh(items);
+        setStyle("textSize", Number(size.value));
       });
       label.append(size); container.append(label);
     }
     if (parent) container.append(node("p", "workspace-help", "Styles apply to parts that inherit them. Individual overrides are retained."));
     else container.append(button("Use parent style", () => {
-      delete target.color; delete target.weight; delete target.textSize; refresh(items); onChange();
+      for (const style of bulk ? items.map((item) => item.style) : [target]) {
+        delete style.color; delete style.weight; delete style.textSize;
+      }
+      refresh(items); onChange();
     }));
+    if (bulk) container.append(node("p", "workspace-help", "Changes apply to every selected object, including hidden objects. Use parent style restores inherited styling."));
   }
   function renderProperties(container) {
     const items = selectedItems().filter((item) => !item.deleted);
@@ -228,13 +279,17 @@ export function createDxfWorkspace(entry, { map, onSelect, onChange, onPick, not
       container.append(button("Whole DXF", () => select(null)));
       container.append(node("strong", "dxf-selection-title", scopeTitle()));
       container.append(node("p", "workspace-help", `${items.length.toLocaleString()} selected · ${items.filter((item) => dxfComponentAppearance(item, entry).visible).length.toLocaleString()} visible`));
-      const target = scopeSettings();
-      const visibilityTarget = selection.id != null ? items[0] : target;
+      const bulk = Boolean(selection.ids);
+      const target = bulk ? {} : scopeSettings();
+      const visibilityTarget = bulk ? { visible: items.every((item) => item.visible !== false) } : selection.id != null ? items[0] : target;
       const label = node("label", "inline-check", "Show selected");
-      label.prepend(checkbox("Show selected", visibilityTarget.visible !== false, (value) => {
-        visibilityTarget.visible = value; refresh(items); onChange();
-      })); container.append(label);
-      addStyleControls(container, target, items, new Set(items.map((item) => item.category)), selection.id == null);
+      const showSelected = checkbox("Show selected", visibilityTarget.visible !== false, (value) => {
+        if (bulk) items.forEach((item) => { item.visible = value; }); else visibilityTarget.visible = value;
+        refresh(items); onChange();
+      });
+      showSelected.indeterminate = bulk && items.some((item) => item.visible !== false) && !visibilityTarget.visible;
+      label.prepend(showSelected); container.append(label);
+      addStyleControls(container, target, items, new Set(items.map((item) => item.category)), selection.id == null && !bulk, bulk);
       container.append(button("Zoom to selection", () => {
         const coordinates = items.flatMap((item) => item.coordinates || [item.coordinate]);
         if (coordinates.length) fitBounds(L.latLngBounds(coordinates.map(([x,y]) => [y,x])));
