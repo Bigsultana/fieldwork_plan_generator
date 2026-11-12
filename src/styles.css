@@ -156,3 +156,27 @@ footer { padding: 1.5rem; color: #68758a; text-align: center; }
   .point-palette { grid-template-columns: 1fr; }
 }
 .map-attribution-note { display: block; margin-top: 0.35rem; color: #68758a; font-size: 0.72rem; font-weight: 450; }
+
+/* Groundwork workspace theme */
+:root{--gw-ink:#1d343b;--gw-muted:#536a66;--gw-line:#dce4df;--gw-green:#1c6f5d;--gw-deep:#102e2b;--gw-pale:#e8f1e9;--gw-bg:#f3f5f1;--gw-white:#fff;--gw-radius:10px;--gw-shadow:0 6px 20px rgba(16,46,43,.06);}
+:focus-visible{outline:2px solid #26806b;outline-offset:3px}
+.gw-kicker{display:block;font:600 .68rem/1.4 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase;margin:0 0 .45rem;color:var(--gw-green)}
+.gw-back{color:var(--gw-green);font-size:.78rem;font-weight:650;text-decoration:none;white-space:nowrap}
+.gw-back:hover{text-decoration:underline}
+:root{background:var(--gw-bg);color:var(--gw-ink);accent-color:var(--gw-green)}
+.hero{background:var(--gw-deep);border-bottom:1px solid #345146;padding-block:clamp(1.25rem,3vw,2rem)}
+.hero h1{font-size:clamp(1.7rem,4vw,2.55rem);font-weight:650;margin-bottom:.4rem}
+.hero-copy{color:#cadbd3}.eyebrow,.hero .gw-back{color:#b5d6c6}.hero .gw-back{display:inline-flex;align-items:center;min-height:36px}
+.hero-actions{align-items:center}
+.panel{border-color:var(--gw-line);border-radius:var(--gw-radius);box-shadow:var(--gw-shadow)}
+.step,.button.secondary,.tool-button.active,.point-tool.active{background:var(--gw-pale);color:var(--gw-deep);border-color:#aacaba}
+.button.primary{background:var(--gw-green);border-color:var(--gw-green);color:white}
+.button.primary:hover{background:#145b4b;border-color:#145b4b}
+.hero .button.secondary{background:#23473e;color:#eef4eb;border-color:#537367}
+.hero .button.secondary:hover{background:#34594f}
+.section-meta,.section-heading h2,.tool-group h3{color:var(--gw-ink)}
+.drop-zone,.empty-state,.map-tools,.company-details,.sheet-register th{background:#f4f7f2;border-color:var(--gw-line);color:var(--gw-ink)}
+.drop-zone:hover,.drop-zone.dragging{background:var(--gw-pale);border-color:var(--gw-green)}
+.drop-zone strong,.text-button{color:var(--gw-green)}
+input:not([type=color]),select{border-color:#cbd8cf}
+input:focus,select:focus{border-color:var(--gw-green);box-shadow:0 0 0 3px #e0efe6}
