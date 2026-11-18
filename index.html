@@ -4,20 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Create mapped A1 fieldwork-plan PowerPoint files entirely in your browser." />
-    <title>Fieldwork Plan Generator</title>
-    <link rel="icon" href="data:," />
+    <title>Fieldwork Plan Generator | Groundworks</title>
+    <link rel="icon" href="./src/groundworks.svg" type="image/svg+xml" />
   </head>
   <body>
     <header class="hero">
       <div>
-        <p class="eyebrow">Groundwork · Field tools</p>
+        <a class="gw-brand" href="https://groundwork.matthewraison.workers.dev/#resources" aria-label="Groundworks home"><svg viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M3 28h28M7 24h20v-6H13v-6h14V6H20" stroke="#b0cfad" stroke-width="2"/></svg><span>groundworks<b>.</b></span></a>
         <h1>Fieldwork Plan Generator</h1>
         <p class="hero-copy">
           Find a site, place numbered fieldwork locations, overlay georeferenced plans and combine the map with supporting drawings in an A1 PowerPoint. Files stay in this browser.
         </p>
       </div>
       <div class="hero-actions">
-        <a class="gw-back" href="https://groundwork.matthewraison.workers.dev/">← Groundwork</a>
         <button id="import-profile" class="button secondary" type="button">Import profile</button>
         <button id="export-profile" class="button secondary" type="button">Export profile</button>
         <input id="profile-file" type="file" accept="application/json,.json" hidden />
@@ -25,8 +24,14 @@
     </header>
 
     <main class="page-shell">
+      <nav class="gw-nav fieldwork-nav" aria-label="Fieldwork plan sections">
+        <a href="#project-panel">Project</a>
+        <a href="#map-panel">Mapped plan</a>
+        <a href="#drawings-panel">Drawings</a>
+        <a href="#output-panel">PowerPoint</a>
+      </nav>
       <form id="generator-form" novalidate>
-        <section class="panel">
+        <section id="project-panel" class="panel">
           <div class="section-heading">
             <div><p class="step">1</p><h2>Project and title block</h2></div>
             <button id="restore-profile" class="text-button" type="button">Restore saved defaults</button>
@@ -63,7 +68,7 @@
           </details>
         </section>
 
-        <section class="panel map-panel">
+        <section id="map-panel" class="panel map-panel">
           <div class="section-heading">
             <div><p class="step">2</p><h2>Build the mapped fieldwork plan</h2></div>
             <label class="inline-check"><input id="include-map" type="checkbox" checked /> Include map and coordinate schedule in PowerPoint</label>
@@ -140,7 +145,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section id="drawings-panel" class="panel">
           <div class="section-heading">
             <div><p class="step">3</p><h2>Add supporting plans and images</h2></div>
             <p id="image-count" class="section-meta">No images selected</p>
@@ -165,7 +170,7 @@
           </div>
         </section>
 
-        <section class="panel output-panel">
+        <section id="output-panel" class="panel output-panel">
           <div class="section-heading">
             <div><p class="step">4</p><h2>Generate PowerPoint</h2></div>
             <p class="section-meta">A1 landscape · map, coordinate schedule and supporting plans</p>
